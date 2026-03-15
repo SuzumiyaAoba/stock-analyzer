@@ -11,6 +11,9 @@ const MAINTENANCE_TEXT = "臨時メンテナンスのお知らせ";
 const INVALID_CREDENTIALS_TEXT = "ユーザーネーム、ログインパスワードに誤りがないかご確認ください。";
 const ADDITIONAL_AUTH_KEYWORDS = ["電話番号認証", "認証コード", "ワンタイムパスワード", "追加認証"];
 
+/**
+ * SBI ログイン処理と、その後の認証待機に利用するブラウザ設定です。
+ */
 export type SbiBrowserConfig = {
   channel: string | undefined;
   credentialsOutputPath: string;
@@ -19,17 +22,31 @@ export type SbiBrowserConfig = {
   timeoutMs: number;
 };
 
+/**
+ * 対話入力で取得した SBI 証券の認証情報です。
+ */
 export type SbiCredentials = {
   password: string;
   username: string;
 };
 
+/**
+ * ログイン試行後の画面状態を表します。
+ */
 export type SbiLoginResult = {
   currentUrl: string;
   status: "additional-auth-required" | "logged-in";
   title: string;
 };
 
+/**
+ * 標準入力から SBI のユーザーネームとログインパスワードを受け取ります。
+ *
+ * パスワードは TTY であれば非表示入力にし、どちらかが空文字の場合は例外を送出します。
+ *
+ * @returns 入力検証済みの SBI 認証情報
+ * @throws 入力値が不足している場合
+ */
 export async function promptForSbiCredentials(): Promise<SbiCredentials> {
   const prompt = createPromptSession();
 
@@ -47,6 +64,15 @@ export async function promptForSbiCredentials(): Promise<SbiCredentials> {
   }
 }
 
+/**
+ * 暗号化ファイルの保護に使うパスワードを 2 回入力で確認しながら取得します。
+ *
+ * 復号耐性を確保するため 64 文字以上を必須にし、再入力一致もここで検証します。
+ *
+ * @returns 暗号化に利用するパスワード
+ * @throws パスワード長が不足している場合
+ * @throws 確認入力と一致しない場合
+ */
 export async function promptForEncryptionPassword(): Promise<string> {
   const prompt = createPromptSession();
 
@@ -68,6 +94,13 @@ export async function promptForEncryptionPassword(): Promise<string> {
   }
 }
 
+/**
+ * SBI スクレイパーの実行設定を環境変数から組み立てます。
+ *
+ * 未設定の値には安全側の既定値を適用し、値の妥当性チェックは各パーサー関数へ委譲します。
+ *
+ * @returns 正規化済みのブラウザ設定
+ */
 export function readSbiBrowserConfigFromEnv(): SbiBrowserConfig {
   return {
     channel: readOptionalEnv("SBI_BROWSER_CHANNEL"),
@@ -79,6 +112,19 @@ export function readSbiBrowserConfigFromEnv(): SbiBrowserConfig {
   };
 }
 
+/**
+ * SBI のログイン画面へ遷移し、認証情報を送信してログイン状態を判定します。
+ *
+ * 追加認証が必要なケースでは、ログイン URL 配下に留まったままログインフォームだけ消えることがあるため、
+ * URL と DOM 文言の両方を組み合わせて状態を分類します。
+ *
+ * @param page 操作用 Playwright ページ
+ * @param credentials 入力済みの SBI 認証情報
+ * @returns 判定済みのログイン結果
+ * @throws メンテナンス画面に到達した場合
+ * @throws 認証エラーを検知した場合
+ * @throws 画面状態を分類できなかった場合
+ */
 export async function loginToSbi(page: Page, credentials: SbiCredentials): Promise<SbiLoginResult> {
   await page.goto(SBI_LOGIN_URL, { waitUntil: "domcontentloaded" });
   await assertLoginPageAvailable(page);
@@ -86,6 +132,7 @@ export async function loginToSbi(page: Page, credentials: SbiCredentials): Promi
   await page.locator('input[name="username"]').fill(credentials.username);
   await page.locator('input[name="password"]').fill(credentials.password);
 
+  // クリック直後の軽微な遷移失敗で全体を落とさないよう、送信と初期遷移待ちを並行させます。
   await Promise.all([
     page.locator('button[type="submit"]').click(),
     page.waitForLoadState("domcontentloaded").catch(() => undefined),
@@ -102,6 +149,7 @@ export async function loginToSbi(page: Page, credentials: SbiCredentials): Promi
   }
 
   if (
+    // 追加認証画面ではログイン URL のままフォームだけ消えることがあるため、両条件を監視します。
     ADDITIONAL_AUTH_KEYWORDS.some((keyword) => bodyText.includes(keyword)) ||
     (!(await hasLoginForm(page)) && page.url().startsWith(SBI_LOGIN_URL))
   ) {
@@ -115,6 +163,17 @@ export async function loginToSbi(page: Page, credentials: SbiCredentials): Promi
   throw new Error(`SBI 証券のログイン状態を判定できませんでした。URL: ${page.url()}`);
 }
 
+/**
+ * 追加認証が完了して通常セッションへ遷移するまで待機します。
+ *
+ * ブラウザ操作はユーザーに委ね、こちらでは一定間隔で画面状態を再評価して完了のみ検知します。
+ *
+ * @param page 追加認証が表示されている Playwright ページ
+ * @param timeoutMs 待機上限時間
+ * @returns 通常ログイン完了後のページ情報
+ * @throws 認証エラーを検知した場合
+ * @throws 指定時間内に通常セッションへ遷移しなかった場合
+ */
 export async function waitForSbiSessionReady(
   page: Page,
   timeoutMs: number,
@@ -134,12 +193,21 @@ export async function waitForSbiSessionReady(
       return buildLoginResult(page, "logged-in");
     }
 
+    // 画面更新をユーザー操作に委ねるため、短いポーリング間隔で状態だけ確認します。
     await page.waitForTimeout(1_000);
   }
 
   throw new Error("追加認証の完了待ちがタイムアウトしました。ブラウザ上で認証を完了してください。");
 }
 
+/**
+ * 真偽値系の環境変数をアプリ内で扱いやすい boolean へ変換します。
+ *
+ * @param name 環境変数名
+ * @param defaultValue 未設定時に使う既定値
+ * @returns パース済みの真偽値
+ * @throws 許可されない文字列が設定されている場合
+ */
 export function readBooleanEnv(name: string, defaultValue: boolean): boolean {
   const value = process.env[name]?.trim().toLowerCase();
 
@@ -158,6 +226,9 @@ export function readBooleanEnv(name: string, defaultValue: boolean): boolean {
   throw new Error(`Environment variable ${name} must be one of: true, false, 1, 0, yes, no`);
 }
 
+/**
+ * 数値系の環境変数を非負整数・実数として受け取り、未設定時は既定値を返します。
+ */
 function readNumberEnv(name: string, defaultValue: number): number {
   const value = process.env[name]?.trim();
 
@@ -174,6 +245,9 @@ function readNumberEnv(name: string, defaultValue: number): number {
   return parsed;
 }
 
+/**
+ * 文字列環境変数を読み込み、空文字を未設定として扱います。
+ */
 function readOptionalEnv(name: string): string | undefined {
   const value = process.env[name]?.trim();
 
@@ -184,7 +258,13 @@ function readOptionalEnv(name: string): string | undefined {
   return value;
 }
 
+/**
+ * ログイン送信後に主要な状態変化が起こるまで待機します。
+ *
+ * URL 遷移、エラー表示、追加認証表示、ネットワーク安定化のいずれかを先に観測した時点で判定フェーズへ進みます。
+ */
 async function waitForLoginTransition(page: Page): Promise<void> {
+  // どの分岐へ進むかは次段の判定ロジックで決めるため、ここでは「変化が起きた」ことだけを待ちます。
   await Promise.race([
     page
       .waitForURL((url) => !url.toString().startsWith(SBI_LOGIN_URL), {
@@ -203,6 +283,9 @@ async function waitForLoginTransition(page: Page): Promise<void> {
   ]);
 }
 
+/**
+ * ログインページがメンテナンスやアクセス制限状態でないことを確認します。
+ */
 async function assertLoginPageAvailable(page: Page): Promise<void> {
   const bodyText = await getBodyText(page);
 
@@ -213,6 +296,9 @@ async function assertLoginPageAvailable(page: Page): Promise<void> {
   }
 }
 
+/**
+ * 現在のページ情報から共通のログイン結果オブジェクトを構築します。
+ */
 async function buildLoginResult(
   page: Page,
   status: SbiLoginResult["status"],
@@ -224,6 +310,9 @@ async function buildLoginResult(
   };
 }
 
+/**
+ * 本文取得に失敗しても判定処理全体は継続できるよう、失敗時は空文字を返します。
+ */
 async function getBodyText(page: Page): Promise<string> {
   return page
     .locator("body")
@@ -231,10 +320,16 @@ async function getBodyText(page: Page): Promise<string> {
     .catch(() => "");
 }
 
+/**
+ * ログインフォームの有無を使って、認証後の画面へ進んだかを補助判定します。
+ */
 async function hasLoginForm(page: Page): Promise<boolean> {
   return (await page.locator(LOGIN_FORM_SELECTOR).count()) > 0;
 }
 
+/**
+ * 標準入力からの通常入力と非表示入力をまとめて扱うプロンプトセッションを生成します。
+ */
 function createPromptSession(): PromptSession {
   const terminal = process.stdin.isTTY && process.stdout.isTTY;
   const output = terminal ? new MutableStdout() : process.stdout;
@@ -250,6 +345,7 @@ function createPromptSession(): PromptSession {
     },
     async hiddenQuestion(promptText: string): Promise<string> {
       if (output instanceof MutableStdout) {
+        // 入力そのものは受け付けつつ画面へのエコーバックだけ抑止します。
         process.stdout.write(promptText);
         output.muted = true;
         const answer = await readline.question("");
@@ -266,6 +362,9 @@ function createPromptSession(): PromptSession {
   };
 }
 
+/**
+ * readline が書き出す文字列を一時的に抑止するための Writable 実装です。
+ */
 class MutableStdout extends Writable {
   muted = false;
 
@@ -282,6 +381,9 @@ class MutableStdout extends Writable {
   }
 }
 
+/**
+ * CLI 入力セッションが提供する最小インターフェースです。
+ */
 type PromptSession = {
   close: () => void;
   hiddenQuestion: (promptText: string) => Promise<string>;
