@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@ts-rest/core": "^3.52.1",
+    "libsodium-wrappers-sumo": "^0.8.2",
     "playwright": "^1.58.2"
   },
   "devDependencies": {
