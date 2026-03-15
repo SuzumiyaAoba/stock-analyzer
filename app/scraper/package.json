@@ -1,0 +1,29 @@
+{
+  "name": "@stock-analyzer/scraper",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Scraper service for stock-analyzer",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "playwright:install": "playwright install chromium"
+  },
+  "keywords": [
+    "scraper",
+    "playwright",
+    "typescript"
+  ],
+  "license": "ISC",
+  "dependencies": {
+    "playwright": "^1.58.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
