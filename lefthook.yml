@@ -1,0 +1,5 @@
+pre-commit:
+  jobs:
+    - name: scraper check
+      root: app/scraper/
+      run: npm run check
