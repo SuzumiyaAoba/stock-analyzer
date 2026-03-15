@@ -4,7 +4,6 @@ import { saveEncryptedJson } from "./secrets.js";
 import {
   loginToSbi,
   promptForEncryptionPassword,
-  promptForSbiCredentials,
   readSbiBrowserConfigFromEnv,
   waitForSbiSessionReady,
 } from "./sbi.js";
@@ -14,9 +13,9 @@ import {
  *
  * 処理の流れ:
  * 1. 環境変数から Playwright の起動設定を読み込みます。
- * 2. 対話入力で SBI 認証情報を受け取り、ログイン状態を判定します。
+ * 2. ブラウザ上でユーザーに SBI 認証情報を入力してもらい、ログイン状態を判定します。
  * 3. 追加認証が必要な場合は、ブラウザ上での完了を待機します。
- * 4. ログインに使った認証情報をユーザー指定のパスワードで暗号化し、ファイルへ保存します。
+ * 4. ブラウザ入力から取得した認証情報をユーザー指定のパスワードで暗号化し、ファイルへ保存します。
  */
 async function main(): Promise<void> {
   const browserConfig = readSbiBrowserConfigFromEnv();
@@ -29,8 +28,9 @@ async function main(): Promise<void> {
   try {
     const context = await browser.newContext();
     const page = await context.newPage();
-    const credentials = await promptForSbiCredentials();
-    let result = await loginToSbi(page, credentials);
+    const loginSession = await loginToSbi(page);
+    const { credentials } = loginSession;
+    let { result } = loginSession;
 
     // 追加認証は自動化せず、ユーザーがブラウザ上で完了したことをセッション状態で検知します。
     if (result.status === "additional-auth-required") {

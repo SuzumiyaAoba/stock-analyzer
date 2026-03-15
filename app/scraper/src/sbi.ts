@@ -23,7 +23,7 @@ export type SbiBrowserConfig = {
 };
 
 /**
- * 対話入力で取得した SBI 証券の認証情報です。
+ * ブラウザ上のログインフォームから取得した SBI 証券の認証情報です。
  */
 export type SbiCredentials = {
   password: string;
@@ -40,29 +40,12 @@ export type SbiLoginResult = {
 };
 
 /**
- * 標準入力から SBI のユーザーネームとログインパスワードを受け取ります。
- *
- * パスワードは TTY であれば非表示入力にし、どちらかが空文字の場合は例外を送出します。
- *
- * @returns 入力検証済みの SBI 認証情報
- * @throws 入力値が不足している場合
+ * ブラウザでのログイン操作から取得した認証情報と、その時点のログイン結果をまとめた値です。
  */
-export async function promptForSbiCredentials(): Promise<SbiCredentials> {
-  const prompt = createPromptSession();
-
-  try {
-    const username = (await prompt.question("SBI ユーザーネーム: ")).trim();
-    const password = (await prompt.hiddenQuestion("SBI ログインパスワード: ")).trim();
-
-    if (username === "" || password === "") {
-      throw new Error("SBI のユーザーネームとログインパスワードはどちらも必須です。");
-    }
-
-    return { password, username };
-  } finally {
-    prompt.close();
-  }
-}
+export type SbiLoginSession = {
+  credentials: SbiCredentials;
+  result: SbiLoginResult;
+};
 
 /**
  * 暗号化ファイルの保護に使うパスワードを 2 回入力で確認しながら取得します。
@@ -113,54 +96,62 @@ export function readSbiBrowserConfigFromEnv(): SbiBrowserConfig {
 }
 
 /**
- * SBI のログイン画面へ遷移し、認証情報を送信してログイン状態を判定します。
+ * SBI のログイン画面へ遷移し、ブラウザ上での手入力完了を待ってログイン状態を判定します。
  *
  * 追加認証が必要なケースでは、ログイン URL 配下に留まったままログインフォームだけ消えることがあるため、
- * URL と DOM 文言の両方を組み合わせて状態を分類します。
+ * URL と DOM 文言の両方を組み合わせて状態を分類します。認証情報はフォーム送信前から読み取り続け、
+ * 画面遷移後でも保存できるよう最後に確認できた値を返します。
  *
  * @param page 操作用 Playwright ページ
- * @param credentials 入力済みの SBI 認証情報
- * @returns 判定済みのログイン結果
+ * @returns 取得した認証情報と判定済みのログイン結果
  * @throws メンテナンス画面に到達した場合
  * @throws 認証エラーを検知した場合
+ * @throws 認証情報を取得できないままログイン画面を離れた場合
  * @throws 画面状態を分類できなかった場合
  */
-export async function loginToSbi(page: Page, credentials: SbiCredentials): Promise<SbiLoginResult> {
+export async function loginToSbi(page: Page): Promise<SbiLoginSession> {
   await page.goto(SBI_LOGIN_URL, { waitUntil: "domcontentloaded" });
   await assertLoginPageAvailable(page);
 
-  await page.locator('input[name="username"]').fill(credentials.username);
-  await page.locator('input[name="password"]').fill(credentials.password);
+  console.log("Enter your SBI username and password in the browser window, then submit the form.");
 
-  // クリック直後の軽微な遷移失敗で全体を落とさないよう、送信と初期遷移待ちを並行させます。
-  await Promise.all([
-    page.locator('button[type="submit"]').click(),
-    page.waitForLoadState("domcontentloaded").catch(() => undefined),
-  ]);
+  let credentials: SbiCredentials | undefined;
 
-  await waitForLoginTransition(page);
+  while (true) {
+    // 送信後に DOM が切り替わっても保存できるよう、フォーム表示中は最後に見えた値を保持します。
+    const visibleCredentials = await readVisibleSbiCredentials(page);
+    if (visibleCredentials !== undefined) {
+      credentials = visibleCredentials;
+    }
 
-  const bodyText = await getBodyText(page);
+    const bodyText = await getBodyText(page);
 
-  if (bodyText.includes(LOGIN_ERROR_TEXT) || bodyText.includes(INVALID_CREDENTIALS_TEXT)) {
-    throw new Error(
-      "SBI 証券へのログインに失敗しました。ユーザーネームまたはログインパスワードを確認してください。",
-    );
+    if (bodyText.includes(LOGIN_ERROR_TEXT) || bodyText.includes(INVALID_CREDENTIALS_TEXT)) {
+      throw new Error(
+        "SBI 証券へのログインに失敗しました。ユーザーネームまたはログインパスワードを確認してください。",
+      );
+    }
+
+    if (
+      // 追加認証画面ではログイン URL のままフォームだけ消えることがあるため、両条件を監視します。
+      ADDITIONAL_AUTH_KEYWORDS.some((keyword) => bodyText.includes(keyword)) ||
+      (!(await hasLoginForm(page)) && page.url().startsWith(SBI_LOGIN_URL))
+    ) {
+      return {
+        credentials: assertCapturedCredentials(credentials),
+        result: await buildLoginResult(page, "additional-auth-required"),
+      };
+    }
+
+    if (!(await hasLoginForm(page)) && !page.url().startsWith(SBI_LOGIN_URL)) {
+      return {
+        credentials: assertCapturedCredentials(credentials),
+        result: await buildLoginResult(page, "logged-in"),
+      };
+    }
+
+    await page.waitForTimeout(500);
   }
-
-  if (
-    // 追加認証画面ではログイン URL のままフォームだけ消えることがあるため、両条件を監視します。
-    ADDITIONAL_AUTH_KEYWORDS.some((keyword) => bodyText.includes(keyword)) ||
-    (!(await hasLoginForm(page)) && page.url().startsWith(SBI_LOGIN_URL))
-  ) {
-    return buildLoginResult(page, "additional-auth-required");
-  }
-
-  if (!(await hasLoginForm(page)) && !page.url().startsWith(SBI_LOGIN_URL)) {
-    return buildLoginResult(page, "logged-in");
-  }
-
-  throw new Error(`SBI 証券のログイン状態を判定できませんでした。URL: ${page.url()}`);
 }
 
 /**
@@ -259,31 +250,6 @@ function readOptionalEnv(name: string): string | undefined {
 }
 
 /**
- * ログイン送信後に主要な状態変化が起こるまで待機します。
- *
- * URL 遷移、エラー表示、追加認証表示、ネットワーク安定化のいずれかを先に観測した時点で判定フェーズへ進みます。
- */
-async function waitForLoginTransition(page: Page): Promise<void> {
-  // どの分岐へ進むかは次段の判定ロジックで決めるため、ここでは「変化が起きた」ことだけを待ちます。
-  await Promise.race([
-    page
-      .waitForURL((url) => !url.toString().startsWith(SBI_LOGIN_URL), {
-        timeout: 15_000,
-      })
-      .catch(() => undefined),
-    page
-      .getByText(LOGIN_ERROR_TEXT, { exact: false })
-      .waitFor({ state: "visible", timeout: 15_000 })
-      .catch(() => undefined),
-    page
-      .getByText("電話番号認証", { exact: false })
-      .waitFor({ state: "visible", timeout: 15_000 })
-      .catch(() => undefined),
-    page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => undefined),
-  ]);
-}
-
-/**
  * ログインページがメンテナンスやアクセス制限状態でないことを確認します。
  */
 async function assertLoginPageAvailable(page: Page): Promise<void> {
@@ -328,7 +294,7 @@ async function hasLoginForm(page: Page): Promise<boolean> {
 }
 
 /**
- * 標準入力からの通常入力と非表示入力をまとめて扱うプロンプトセッションを生成します。
+ * 非表示入力が必要な CLI プロンプトセッションを生成します。
  */
 function createPromptSession(): PromptSession {
   const terminal = process.stdin.isTTY && process.stdout.isTTY;
@@ -356,10 +322,50 @@ function createPromptSession(): PromptSession {
 
       return readline.question(promptText);
     },
-    question(promptText: string): Promise<string> {
-      return readline.question(promptText);
-    },
   };
+}
+
+/**
+ * ログインフォームの入力欄から、現時点で画面に見えている認証情報を読み取ります。
+ *
+ * 両方がそろっている場合のみ返し、入力途中の中途半端な値は採用しません。
+ */
+async function readVisibleSbiCredentials(page: Page): Promise<SbiCredentials | undefined> {
+  if (!(await hasLoginForm(page))) {
+    return undefined;
+  }
+
+  const username = (await readInputValue(page, 'input[name="username"]')).trim();
+  const password = (await readInputValue(page, 'input[name="password"]')).trim();
+
+  if (username === "" || password === "") {
+    return undefined;
+  }
+
+  return { password, username };
+}
+
+/**
+ * 入力欄から値を安全に取得し、取得失敗時は空文字へフォールバックします。
+ */
+async function readInputValue(page: Page, selector: string): Promise<string> {
+  return page
+    .locator(selector)
+    .inputValue()
+    .catch(() => "");
+}
+
+/**
+ * 認証情報をまだ取得できていない状態で遷移した場合に、わかりやすい例外へ変換します。
+ */
+function assertCapturedCredentials(credentials: SbiCredentials | undefined): SbiCredentials {
+  if (credentials === undefined) {
+    throw new Error(
+      "ブラウザ上で入力された SBI 認証情報を取得できませんでした。入力後に通常のログインボタンから送信してください。",
+    );
+  }
+
+  return credentials;
 }
 
 /**
@@ -387,5 +393,4 @@ class MutableStdout extends Writable {
 type PromptSession = {
   close: () => void;
   hiddenQuestion: (promptText: string) => Promise<string>;
-  question: (promptText: string) => Promise<string>;
 };
