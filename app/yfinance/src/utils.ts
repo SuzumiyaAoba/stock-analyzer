@@ -1,3 +1,4 @@
+import { err, ok, ResultAsync, type Result } from "neverthrow";
 import { VALID_ACTION_TYPES, VALID_INTERVALS, type HistorySyncRequest } from "./types";
 
 export class HttpError extends Error {
@@ -9,33 +10,94 @@ export class HttpError extends Error {
   }
 }
 
+export type AppResult<T> = Result<T, HttpError>;
+export type AppResultAsync<T> = ResultAsync<T, HttpError>;
+
 export function json(data: unknown, init?: ResponseInit): Response {
   return Response.json(data, init);
 }
 
+export function unwrapOrThrow<T>(result: AppResult<T>): T {
+  return result.match(
+    (value) => value,
+    (error) => {
+      throw error;
+    },
+  );
+}
+
+export function parseJsonBodyResult<T>(request: Request): AppResultAsync<T> {
+  return ResultAsync.fromPromise(request.json() as Promise<T>, () => {
+    return new HttpError(400, "JSON ボディが不正です");
+  });
+}
+
 export async function parseJsonBody<T>(request: Request): Promise<T> {
-  try {
-    return (await request.json()) as T;
-  } catch {
-    throw new HttpError(400, "JSON ボディが不正です");
+  return (await parseJsonBodyResult<T>(request)).match(
+    (value) => value,
+    (error) => {
+      throw error;
+    },
+  );
+}
+
+export function normalizeSymbolResult(symbol: string | null | undefined): AppResult<string> {
+  const normalized = symbol?.trim().toUpperCase();
+  if (!normalized) {
+    return err(new HttpError(400, "symbol は必須です"));
   }
+
+  return ok(normalized);
 }
 
 export function normalizeSymbol(symbol: string | null | undefined): string {
-  const normalized = symbol?.trim().toUpperCase();
-  if (!normalized) {
-    throw new HttpError(400, "symbol は必須です");
+  return unwrapOrThrow(normalizeSymbolResult(symbol));
+}
+
+export function validateSymbolsResult(symbols: string[] | null | undefined): AppResult<string[]> {
+  if (!Array.isArray(symbols) || symbols.length === 0) {
+    return err(new HttpError(400, "symbols は1件以上必要です"));
   }
-  return normalized;
+
+  const normalized: string[] = [];
+  for (const symbol of symbols) {
+    const result = normalizeSymbolResult(symbol);
+    if (result.isErr()) {
+      return err(result.error);
+    }
+    normalized.push(result.value);
+  }
+
+  return ok([...new Set(normalized)]);
 }
 
 export function validateSymbols(symbols: string[] | null | undefined): string[] {
-  if (!Array.isArray(symbols) || symbols.length === 0) {
-    throw new HttpError(400, "symbols は1件以上必要です");
+  return unwrapOrThrow(validateSymbolsResult(symbols));
+}
+
+export function parseLimitResult(
+  value: string | null | undefined,
+  options: {
+    defaultValue: number;
+    min?: number;
+    max: number;
+    fieldName?: string;
+  },
+): AppResult<number> {
+  const { defaultValue, min = 1, max, fieldName = "limit" } = options;
+
+  if (value === null || value === undefined || value.trim() === "") {
+    return ok(defaultValue);
   }
 
-  const normalized = symbols.map((symbol) => normalizeSymbol(symbol));
-  return [...new Set(normalized)];
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    return err(
+      new HttpError(400, `${fieldName} は ${min} 以上 ${max} 以下の整数で指定してください`),
+    );
+  }
+
+  return ok(parsed);
 }
 
 export function parseLimit(
@@ -47,74 +109,83 @@ export function parseLimit(
     fieldName?: string;
   },
 ): number {
-  const { defaultValue, min = 1, max, fieldName = "limit" } = options;
+  return unwrapOrThrow(parseLimitResult(value, options));
+}
 
-  if (value === null || value === undefined || value.trim() === "") {
-    return defaultValue;
+export function parseIntervalResult(
+  value: string | null | undefined,
+  fallback = "1d",
+): AppResult<string> {
+  const interval = value?.trim() || fallback;
+  if (!VALID_INTERVALS.has(interval)) {
+    return err(new HttpError(400, `interval が不正です: ${interval}`));
   }
 
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
-    throw new HttpError(400, `${fieldName} は ${min} 以上 ${max} 以下の整数で指定してください`);
-  }
-
-  return parsed;
+  return ok(interval);
 }
 
 export function parseInterval(value: string | null | undefined, fallback = "1d"): string {
-  const interval = value?.trim() || fallback;
-  if (!VALID_INTERVALS.has(interval)) {
-    throw new HttpError(400, `interval が不正です: ${interval}`);
+  return unwrapOrThrow(parseIntervalResult(value, fallback));
+}
+
+export function parseActionTypeResult(value: string | null | undefined): AppResult<string | null> {
+  const actionType = value?.trim() || null;
+  if (actionType && !VALID_ACTION_TYPES.has(actionType)) {
+    return err(new HttpError(400, `type が不正です: ${actionType}`));
   }
-  return interval;
+
+  return ok(actionType);
 }
 
 export function parseActionType(value: string | null | undefined): string | null {
-  const actionType = value?.trim() || null;
-  if (actionType && !VALID_ACTION_TYPES.has(actionType)) {
-    throw new HttpError(400, `type が不正です: ${actionType}`);
-  }
-  return actionType;
+  return unwrapOrThrow(parseActionTypeResult(value));
+}
+
+export function validateHistoryRequestResult(
+  input: HistorySyncRequest,
+): AppResult<Required<HistorySyncRequest>> {
+  return normalizeSymbolResult(input.symbol).andThen((symbol) => {
+    return parseIntervalResult(input.interval).andThen((interval) => {
+      const range = input.range?.trim() || "";
+      const start = input.start?.trim() || "";
+      const end = input.end?.trim() || "";
+      if (!range && !start && !end) {
+        return ok({
+          symbol,
+          interval,
+          range: "1mo",
+          start: "",
+          end: "",
+          includePrePost: input.includePrePost ?? false,
+        });
+      }
+
+      if (range && (start || end)) {
+        return err(new HttpError(400, "range と start/end は同時に指定できません"));
+      }
+
+      if (start && Number.isNaN(new Date(start).getTime())) {
+        return err(new HttpError(400, `start が不正です: ${start}`));
+      }
+
+      if (end && Number.isNaN(new Date(end).getTime())) {
+        return err(new HttpError(400, `end が不正です: ${end}`));
+      }
+
+      return ok({
+        symbol,
+        interval,
+        range,
+        start,
+        end,
+        includePrePost: input.includePrePost ?? false,
+      });
+    });
+  });
 }
 
 export function validateHistoryRequest(input: HistorySyncRequest): Required<HistorySyncRequest> {
-  const symbol = normalizeSymbol(input.symbol);
-  const interval = parseInterval(input.interval);
-
-  const range = input.range?.trim() || "";
-  const start = input.start?.trim() || "";
-  const end = input.end?.trim() || "";
-  if (!range && !start && !end) {
-    return {
-      symbol,
-      interval,
-      range: "1mo",
-      start: "",
-      end: "",
-      includePrePost: input.includePrePost ?? false,
-    };
-  }
-
-  if (range && (start || end)) {
-    throw new HttpError(400, "range と start/end は同時に指定できません");
-  }
-
-  if (start && Number.isNaN(new Date(start).getTime())) {
-    throw new HttpError(400, `start が不正です: ${start}`);
-  }
-
-  if (end && Number.isNaN(new Date(end).getTime())) {
-    throw new HttpError(400, `end が不正です: ${end}`);
-  }
-
-  return {
-    symbol,
-    interval,
-    range,
-    start,
-    end,
-    includePrePost: input.includePrePost ?? false,
-  };
+  return unwrapOrThrow(validateHistoryRequestResult(input));
 }
 
 export function toIsoUtc(unixSeconds: number): string {

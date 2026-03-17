@@ -1,21 +1,35 @@
 import { describe, expect, it } from "bun:test";
 import {
+  type AppResult,
   HttpError,
   asNumber,
   isObject,
   normalizeSymbol,
+  normalizeSymbolResult,
   parseActionType,
   parseInterval,
   parseJsonBody,
+  parseJsonBodyResult,
   parseLimit,
   unwrapYahooValue,
   validateHistoryRequest,
   validateSymbols,
 } from "./utils";
 
+function getErrorMessage<T>(result: AppResult<T>): string | null {
+  return result.match(
+    () => null,
+    (error) => error.message,
+  );
+}
+
 describe("utils", () => {
   it("normalizeSymbol は大文字化して返す", () => {
     expect(normalizeSymbol(" aapl ")).toBe("AAPL");
+  });
+
+  it("normalizeSymbolResult は失敗を Result で返す", () => {
+    expect(getErrorMessage(normalizeSymbolResult(""))).toBe("symbol は必須です");
   });
 
   it("normalizeSymbol は空文字で HttpError を投げる", () => {
@@ -79,6 +93,17 @@ describe("utils", () => {
     });
 
     await expect(parseJsonBody(request)).rejects.toThrow(HttpError);
+  });
+
+  it("parseJsonBodyResult は不正 JSON を Result で返す", async () => {
+    const request = new Request("http://localhost/test", {
+      method: "POST",
+      body: "{bad",
+      headers: { "content-type": "application/json" },
+    });
+
+    const result = await parseJsonBodyResult(request);
+    expect(getErrorMessage(result)).toBe("JSON ボディが不正です");
   });
 
   it("unwrapYahooValue は raw フィールドを再帰的に展開する", () => {
