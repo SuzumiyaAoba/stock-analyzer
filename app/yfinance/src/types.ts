@@ -14,11 +14,7 @@ export const VALID_INTERVALS = new Set([
   "3mo",
 ]);
 
-export const VALID_ACTION_TYPES = new Set([
-  "dividend",
-  "split",
-  "capitalGain",
-]);
+export const VALID_ACTION_TYPES = new Set(["dividend", "split", "capitalGain"]);
 
 export type Interval = string;
 

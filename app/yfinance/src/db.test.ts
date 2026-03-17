@@ -40,7 +40,7 @@ describe("YFinanceDatabase", () => {
       shortName: null,
       longName: "Apple Incorporated",
       firstTradeAt: null,
-      rawJson: "{\"v\":2}",
+      rawJson: '{"v":2}',
     });
 
     const instrument = db.getInstrument("AAPL");

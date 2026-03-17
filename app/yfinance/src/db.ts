@@ -403,13 +403,7 @@ export class YFinanceDatabase {
           results_json = ?
         WHERE id = ?
       `)
-      .run(
-        input.finishedAt,
-        input.status,
-        input.errorMessage,
-        input.resultsJson,
-        input.id,
-      );
+      .run(input.finishedAt, input.status, input.errorMessage, input.resultsJson, input.id);
   }
 
   getSyncJobRuns(limit = 20): Record<string, unknown>[] {

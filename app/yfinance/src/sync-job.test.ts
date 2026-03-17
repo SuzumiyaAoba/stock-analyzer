@@ -195,7 +195,9 @@ describe("SyncJob", () => {
       },
     };
 
-    const setIntervalSpy = spyOn(globalThis, "setInterval").mockImplementation(mock(() => 1 as any));
+    const setIntervalSpy = spyOn(globalThis, "setInterval").mockImplementation(
+      mock(() => 1 as any),
+    );
 
     try {
       const job = new SyncJob(db as any, yahoo as any, {

@@ -91,11 +91,7 @@ describe("sync-service", () => {
     const fakeDb = createFakeDb();
     const fakeYahoo = createFakeYahoo();
 
-    const result = await syncHistory(
-      fakeDb.db as any,
-      fakeYahoo.yahoo as any,
-      { symbol: "aapl" },
-    );
+    const result = await syncHistory(fakeDb.db as any, fakeYahoo.yahoo as any, { symbol: "aapl" });
 
     expect(result).toEqual({
       symbol: "AAPL",
@@ -112,11 +108,7 @@ describe("sync-service", () => {
     const fakeDb = createFakeDb();
     const fakeYahoo = createFakeYahoo();
 
-    const result = await syncQuote(
-      fakeDb.db as any,
-      fakeYahoo.yahoo as any,
-      { symbol: " msft " },
-    );
+    const result = await syncQuote(fakeDb.db as any, fakeYahoo.yahoo as any, { symbol: " msft " });
 
     expect(result).toEqual({
       symbol: "MSFT",

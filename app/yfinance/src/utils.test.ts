@@ -31,12 +31,8 @@ describe("utils", () => {
   });
 
   it("parseLimit は範囲外や非整数を拒否する", () => {
-    expect(() =>
-      parseLimit("1.5", { defaultValue: 20, max: 200 }),
-    ).toThrow(HttpError);
-    expect(() =>
-      parseLimit("0", { defaultValue: 20, max: 200 }),
-    ).toThrow(HttpError);
+    expect(() => parseLimit("1.5", { defaultValue: 20, max: 200 })).toThrow(HttpError);
+    expect(() => parseLimit("0", { defaultValue: 20, max: 200 })).toThrow(HttpError);
   });
 
   it("parseInterval と parseActionType は許可値を返す", () => {

@@ -1,11 +1,7 @@
 import { YFinanceDatabase } from "./db";
 import { readSyncJobConfig, SyncJob } from "./sync-job";
 import { syncBatch, syncHistory, syncQuote } from "./sync-service";
-import {
-  type BatchSyncRequest,
-  type HistorySyncRequest,
-  type QuoteSyncRequest,
-} from "./types";
+import { type BatchSyncRequest, type HistorySyncRequest, type QuoteSyncRequest } from "./types";
 import { YahooFinanceClient } from "./yahoo-client";
 import {
   HttpError,
@@ -91,12 +87,7 @@ function handleInstrumentRequest(db: YFinanceDatabase, path: string): Response {
   return json(instrument);
 }
 
-export function createApp({
-  db,
-  yahoo,
-  syncJob,
-  logger = console,
-}: AppDependencies) {
+export function createApp({ db, yahoo, syncJob, logger = console }: AppDependencies) {
   return {
     async fetch(request: Request) {
       try {
