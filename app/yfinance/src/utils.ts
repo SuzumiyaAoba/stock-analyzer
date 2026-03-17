@@ -1,8 +1,4 @@
-import {
-  VALID_ACTION_TYPES,
-  VALID_INTERVALS,
-  type HistorySyncRequest,
-} from "./types";
+import { VALID_ACTION_TYPES, VALID_INTERVALS, type HistorySyncRequest } from "./types";
 
 export class HttpError extends Error {
   constructor(
@@ -51,12 +47,7 @@ export function parseLimit(
     fieldName?: string;
   },
 ): number {
-  const {
-    defaultValue,
-    min = 1,
-    max,
-    fieldName = "limit",
-  } = options;
+  const { defaultValue, min = 1, max, fieldName = "limit" } = options;
 
   if (value === null || value === undefined || value.trim() === "") {
     return defaultValue;

@@ -65,7 +65,10 @@ export class YahooFinanceClient {
     };
   }
 
-  async syncQuote(symbol: string, modules = [...DEFAULT_QUOTE_MODULES]): Promise<QuoteSyncResult> {
+  async syncQuote(
+    symbol: string,
+    modules: string[] = [...DEFAULT_QUOTE_MODULES],
+  ): Promise<QuoteSyncResult> {
     const params = new URLSearchParams();
     params.set("modules", modules.join(","));
 
@@ -101,15 +104,12 @@ export class YahooFinanceClient {
     const snapshot: QuoteSnapshotRecord = {
       symbol,
       asOf: snapshotAt,
-      regularMarketPrice:
-        asNumber(merged.regularMarketPrice) ?? asNumber(merged.currentPrice),
-      previousClose:
-        asNumber(merged.regularMarketPreviousClose) ?? asNumber(merged.previousClose),
+      regularMarketPrice: asNumber(merged.regularMarketPrice) ?? asNumber(merged.currentPrice),
+      previousClose: asNumber(merged.regularMarketPreviousClose) ?? asNumber(merged.previousClose),
       dayHigh: asNumber(merged.regularMarketDayHigh) ?? asNumber(merged.dayHigh),
       dayLow: asNumber(merged.regularMarketDayLow) ?? asNumber(merged.dayLow),
       marketCap: asNumber(merged.marketCap),
-      regularMarketVolume:
-        asNumber(merged.regularMarketVolume) ?? asNumber(merged.volume),
+      regularMarketVolume: asNumber(merged.regularMarketVolume) ?? asNumber(merged.volume),
       rawJson: JSON.stringify(flattened),
     };
 
@@ -229,7 +229,11 @@ export class YahooFinanceClient {
     };
   }
 
-  private buildBars(symbol: string, interval: string, result: Record<string, any>): PriceBarRecord[] {
+  private buildBars(
+    symbol: string,
+    interval: string,
+    result: Record<string, any>,
+  ): PriceBarRecord[] {
     const timestamps = Array.isArray(result.timestamp) ? result.timestamp : [];
     const quote = result.indicators?.quote?.[0] ?? {};
     const adjclose = result.indicators?.adjclose?.[0]?.adjclose ?? [];
@@ -266,7 +270,10 @@ export class YahooFinanceClient {
     });
   }
 
-  private buildCorporateActions(symbol: string, events: Record<string, any> | undefined): CorporateActionRecord[] {
+  private buildCorporateActions(
+    symbol: string,
+    events: Record<string, any> | undefined,
+  ): CorporateActionRecord[] {
     if (!isObject(events)) {
       return [];
     }
@@ -274,7 +281,9 @@ export class YahooFinanceClient {
     const records: CorporateActionRecord[] = [];
     records.push(...this.extractActionMap(symbol, "dividend", events.dividends, "amount"));
     records.push(...this.extractActionMap(symbol, "capitalGain", events.capitalGains, "amount"));
-    records.push(...this.extractActionMap(symbol, "split", events.splits, "numerator", "denominator"));
+    records.push(
+      ...this.extractActionMap(symbol, "split", events.splits, "numerator", "denominator"),
+    );
     return records;
   }
 

@@ -7,8 +7,6 @@
     "noEmit": true,
     "allowJs": false,
     "skipLibCheck": true,
-    "types": [
-      "bun-types"
-    ]
+    "types": ["bun-types"]
   }
 }

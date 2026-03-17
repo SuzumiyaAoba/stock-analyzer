@@ -14,10 +14,10 @@
   "scripts": {
     "precheck": "node -e \"import('node:fs').then((fs) => fs.rmSync('dist', { recursive: true, force: true }))\"",
     "build": "tsc -p tsconfig.json",
-    "check": "vp check && tsc --noEmit -p tsconfig.json",
+    "check": "npm exec -- vp check && tsc --noEmit -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
-    "fmt": "vp fmt",
-    "lint": "vp lint",
+    "fmt": "npm exec -- vp fmt",
+    "lint": "npm exec -- vp lint",
     "start": "tsx src/index.ts",
     "playwright:install": "playwright install chromium"
   },

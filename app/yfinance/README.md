@@ -5,6 +5,7 @@ Bun で Yahoo Finance の価格データと銘柄情報を取得し、SQLite に
 ## 起動
 
 ```bash
+npm install
 bun run dev
 ```
 
@@ -12,6 +13,16 @@ bun run dev
 
 ```bash
 bun test
+```
+
+## 補助コマンド
+
+Vite+ を導入して、整形・lint・静的チェックを実行できます。
+
+```bash
+npm run fmt
+npm run lint
+npm run check
 ```
 
 環境変数:

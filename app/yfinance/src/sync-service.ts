@@ -1,15 +1,7 @@
 import type { YFinanceDatabase } from "./db";
-import type {
-  BatchSyncRequest,
-  HistorySyncRequest,
-  QuoteSyncRequest,
-} from "./types";
+import type { BatchSyncRequest, HistorySyncRequest, QuoteSyncRequest } from "./types";
 import type { YahooFinanceClient } from "./yahoo-client";
-import {
-  normalizeSymbol,
-  validateHistoryRequest,
-  validateSymbols,
-} from "./utils";
+import { normalizeSymbol, validateHistoryRequest, validateSymbols } from "./utils";
 
 export type SymbolSyncOptions = {
   symbol: string;

@@ -168,9 +168,7 @@ describe("server", () => {
 
   it("GET /api/v1/instruments/:symbol は DB 結果を返す", async () => {
     const app = createApp(createDependencies() as any);
-    const response = await app.fetch(
-      new Request("http://localhost/api/v1/instruments/AAPL"),
-    );
+    const response = await app.fetch(new Request("http://localhost/api/v1/instruments/AAPL"));
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ symbol: "AAPL" });
