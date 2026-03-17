@@ -1,4 +1,5 @@
-import { HttpError, asNumber, isObject, toIsoUtc, unwrapYahooValue } from "./utils";
+import { isPlainObject, trim } from "es-toolkit";
+import { HttpError, asNumber, toIsoUtc, unwrapYahooValue } from "./utils";
 import type {
   ChartSyncResult,
   CorporateActionRecord,
@@ -57,7 +58,7 @@ export class YahooFinanceClient {
       throw new HttpError(502, description || "Yahoo Finance から価格データを取得できませんでした");
     }
 
-    const meta = isObject(result.meta) ? result.meta : {};
+    const meta = isPlainObject(result.meta) ? result.meta : {};
     return {
       instrument: this.buildInstrumentFromChart(input.symbol, meta),
       bars: this.buildBars(input.symbol, input.interval, result),
@@ -84,17 +85,17 @@ export class YahooFinanceClient {
     }
 
     const flattened = unwrapYahooValue(result);
-    if (!isObject(flattened)) {
+    if (!isPlainObject(flattened)) {
       throw new HttpError(502, "Yahoo Finance のレスポンス形式が想定外です");
     }
 
     const merged = Object.assign(
       {},
-      isObject(flattened.quoteType) ? flattened.quoteType : {},
-      isObject(flattened.price) ? flattened.price : {},
-      isObject(flattened.summaryDetail) ? flattened.summaryDetail : {},
-      isObject(flattened.defaultKeyStatistics) ? flattened.defaultKeyStatistics : {},
-      isObject(flattened.financialData) ? flattened.financialData : {},
+      isPlainObject(flattened.quoteType) ? flattened.quoteType : {},
+      isPlainObject(flattened.price) ? flattened.price : {},
+      isPlainObject(flattened.summaryDetail) ? flattened.summaryDetail : {},
+      isPlainObject(flattened.defaultKeyStatistics) ? flattened.defaultKeyStatistics : {},
+      isPlainObject(flattened.financialData) ? flattened.financialData : {},
     ) as Record<string, unknown>;
 
     const snapshotAt = asNumber(merged.regularMarketTime)
@@ -186,7 +187,7 @@ export class YahooFinanceClient {
       throw new HttpError(502, "Yahoo Finance の cookie を取得できませんでした");
     }
 
-    const cookiePair = setCookie.split(";")[0]?.trim();
+    const cookiePair = trim(setCookie.split(";")[0] ?? "");
     if (!cookiePair) {
       throw new HttpError(502, "Yahoo Finance の cookie 形式が不正です");
     }
@@ -201,7 +202,7 @@ export class YahooFinanceClient {
       redirect: "follow",
     });
 
-    const crumbBody = (await crumbResponse.text()).trim();
+    const crumbBody = trim(await crumbResponse.text());
     if (
       !crumbResponse.ok ||
       !crumbBody ||
@@ -274,7 +275,7 @@ export class YahooFinanceClient {
     symbol: string,
     events: Record<string, any> | undefined,
   ): CorporateActionRecord[] {
-    if (!isObject(events)) {
+    if (!isPlainObject(events)) {
       return [];
     }
 
@@ -294,12 +295,12 @@ export class YahooFinanceClient {
     numeratorKey: string,
     denominatorKey?: string,
   ): CorporateActionRecord[] {
-    if (!isObject(rawMap)) {
+    if (!isPlainObject(rawMap)) {
       return [];
     }
 
     return Object.values(rawMap).flatMap((entry) => {
-      if (!isObject(entry)) {
+      if (!isPlainObject(entry)) {
         return [];
       }
 

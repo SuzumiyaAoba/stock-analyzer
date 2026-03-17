@@ -141,6 +141,47 @@ describe("server", () => {
     });
   });
 
+  it("POST /api/v1/sync/quote は不正 JSON を 400 で返す", async () => {
+    const app = createApp(createDependencies() as any);
+    const response = await app.fetch(
+      new Request("http://localhost/api/v1/sync/quote", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{bad",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "JSON ボディが不正です" });
+  });
+
+  it("sync 処理で予期しない例外が起きたときは 500 を返す", async () => {
+    const logger = {
+      errorCalls: [] as unknown[],
+      error(value: unknown) {
+        this.errorCalls.push(value);
+      },
+      log() {},
+    };
+    const deps = createDependencies();
+    deps.yahoo.syncHistory = async () => {
+      throw new Error("boom");
+    };
+
+    const app = createApp({ ...(deps as any), logger });
+    const response = await app.fetch(
+      new Request("http://localhost/api/v1/sync/history", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ symbol: "AAPL" }),
+      }),
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "internal server error" });
+    expect(logger.errorCalls).toHaveLength(1);
+  });
+
   it("POST /api/v1/jobs/sync/run は symbols 未設定なら 400", async () => {
     const deps = createDependencies();
     deps.syncJob.snapshot = () => ({

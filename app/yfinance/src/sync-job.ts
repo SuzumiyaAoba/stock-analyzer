@@ -1,3 +1,4 @@
+import { formatZodError, syncJobConfigSchema } from "./schemas";
 import type { YFinanceDatabase } from "./db";
 import { syncSymbol, type SymbolSyncResult } from "./sync-service";
 import type { YahooFinanceClient } from "./yahoo-client";
@@ -135,20 +136,10 @@ export class SyncJob {
 }
 
 export function readSyncJobConfig(): SyncJobConfig {
-  const symbols = (process.env.SYNC_SYMBOLS || "")
-    .split(",")
-    .map((value) => value.trim().toUpperCase())
-    .filter(Boolean);
+  const result = syncJobConfigSchema.safeParse(process.env);
+  if (!result.success) {
+    throw new Error(formatZodError(result.error));
+  }
 
-  const intervalMs = Number(process.env.SYNC_INTERVAL_MS || 0);
-
-  return {
-    enabled: intervalMs > 0 && symbols.length > 0,
-    symbols,
-    intervalMs,
-    historyInterval: process.env.SYNC_HISTORY_INTERVAL || "1d",
-    historyRange: process.env.SYNC_HISTORY_RANGE || "1mo",
-    includePrePost: process.env.SYNC_INCLUDE_PREPOST === "true",
-    runOnStart: process.env.SYNC_RUN_ON_START !== "false",
-  };
+  return result.data;
 }
