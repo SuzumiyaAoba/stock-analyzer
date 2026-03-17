@@ -3,6 +3,9 @@ import { createApp } from "./server";
 
 function createDependencies() {
   const db = {
+    getInstruments() {
+      return [{ symbol: "AAPL", latestQuote: null }];
+    },
     getPrices() {
       return [{ symbol: "AAPL" }];
     },
@@ -119,6 +122,29 @@ describe("server", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
       error: "limit は 1 以上 5000 以下の整数で指定してください",
+    });
+  });
+
+  it("GET /api/v1/instruments は一覧を返す", async () => {
+    const app = createApp(createDependencies() as any);
+    const response = await app.fetch(
+      new Request("http://localhost/api/v1/instruments?q=app&limit=10&offset=0"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      count: 1,
+      items: [{ symbol: "AAPL", latestQuote: null }],
+    });
+  });
+
+  it("GET /api/v1/instruments は不正 limit を拒否する", async () => {
+    const app = createApp(createDependencies() as any);
+    const response = await app.fetch(new Request("http://localhost/api/v1/instruments?limit=999"));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "limit は 1 以上 200 以下の整数で指定してください",
     });
   });
 

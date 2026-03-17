@@ -87,6 +87,10 @@ npm run check
 
 保存済みの配当・分割データを返します。
 
+### `GET /api/v1/instruments?q=apple&limit=50&offset=0&sortBy=symbol&order=asc`
+
+保存済みの銘柄一覧を返します。`q` で `symbol` / `shortName` / `longName` を部分一致検索できます。
+
 ### `GET /api/v1/instruments/AAPL`
 
 保存済みの銘柄情報と最新スナップショットを返します。
