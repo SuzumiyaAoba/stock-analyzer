@@ -8,6 +8,12 @@ Bun で Yahoo Finance の価格データと銘柄情報を取得し、SQLite に
 bun run dev
 ```
 
+## テスト
+
+```bash
+bun test
+```
+
 環境変数:
 
 - `PORT`: デフォルト `3000`
