@@ -1,0 +1,9 @@
+{
+  "name": "@stock-analyzer/yfinance",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/server.ts",
+    "start": "bun src/server.ts"
+  }
+}
