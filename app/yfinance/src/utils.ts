@@ -1,6 +1,15 @@
-import { isNumber, trim, uniq } from "es-toolkit";
+import { isNumber, trim } from "es-toolkit";
 import { err, ok, ResultAsync, type Result } from "neverthrow";
-import { VALID_ACTION_TYPES, VALID_INTERVALS, type HistorySyncRequest } from "./types";
+import { z } from "zod";
+import {
+  actionTypeSchema,
+  formatZodError,
+  historySyncRequestSchema,
+  intervalSchema,
+  symbolSchema,
+  symbolsSchema,
+} from "./schemas";
+import { type HistorySyncRequest } from "./types";
 
 export class HttpError extends Error {
   constructor(
@@ -33,6 +42,15 @@ export function parseJsonBodyResult<T>(request: Request): AppResultAsync<T> {
   });
 }
 
+function parseZodResult<T>(schema: z.ZodType<T>, input: unknown, status = 400): AppResult<T> {
+  const result = schema.safeParse(input);
+  if (!result.success) {
+    return err(new HttpError(status, formatZodError(result.error)));
+  }
+
+  return ok(result.data);
+}
+
 export async function parseJsonBody<T>(request: Request): Promise<T> {
   return (await parseJsonBodyResult<T>(request)).match(
     (value) => value,
@@ -43,12 +61,7 @@ export async function parseJsonBody<T>(request: Request): Promise<T> {
 }
 
 export function normalizeSymbolResult(symbol: string | null | undefined): AppResult<string> {
-  const normalized = trim(symbol ?? "").toUpperCase();
-  if (!normalized) {
-    return err(new HttpError(400, "symbol は必須です"));
-  }
-
-  return ok(normalized);
+  return parseZodResult(symbolSchema, symbol ?? "");
 }
 
 export function normalizeSymbol(symbol: string | null | undefined): string {
@@ -56,20 +69,7 @@ export function normalizeSymbol(symbol: string | null | undefined): string {
 }
 
 export function validateSymbolsResult(symbols: string[] | null | undefined): AppResult<string[]> {
-  if (!Array.isArray(symbols) || symbols.length === 0) {
-    return err(new HttpError(400, "symbols は1件以上必要です"));
-  }
-
-  const normalized: string[] = [];
-  for (const symbol of symbols) {
-    const result = normalizeSymbolResult(symbol);
-    if (result.isErr()) {
-      return err(result.error);
-    }
-    normalized.push(result.value);
-  }
-
-  return ok(uniq(normalized));
+  return parseZodResult(symbolsSchema, symbols ?? []);
 }
 
 export function validateSymbols(symbols: string[] | null | undefined): string[] {
@@ -87,18 +87,29 @@ export function parseLimitResult(
 ): AppResult<number> {
   const { defaultValue, min = 1, max, fieldName = "limit" } = options;
 
-  if (value === null || value === undefined || trim(value) === "") {
-    return ok(defaultValue);
-  }
+  return parseZodResult(
+    z
+      .string()
+      .optional()
+      .transform((input, ctx) => {
+        const normalized = trim(input ?? "");
+        if (!normalized) {
+          return defaultValue;
+        }
 
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
-    return err(
-      new HttpError(400, `${fieldName} は ${min} 以上 ${max} 以下の整数で指定してください`),
-    );
-  }
+        const parsed = Number(normalized);
+        if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+          ctx.addIssue({
+            code: "custom",
+            message: `${fieldName} は ${min} 以上 ${max} 以下の整数で指定してください`,
+          });
+          return z.NEVER;
+        }
 
-  return ok(parsed);
+        return parsed;
+      }),
+    value ?? undefined,
+  );
 }
 
 export function parseLimit(
@@ -115,14 +126,9 @@ export function parseLimit(
 
 export function parseIntervalResult(
   value: string | null | undefined,
-  fallback = "1d",
+  _fallback = "1d",
 ): AppResult<string> {
-  const interval = trim(value ?? "") || fallback;
-  if (!VALID_INTERVALS.has(interval)) {
-    return err(new HttpError(400, `interval が不正です: ${interval}`));
-  }
-
-  return ok(interval);
+  return parseZodResult(intervalSchema, value ?? undefined);
 }
 
 export function parseInterval(value: string | null | undefined, fallback = "1d"): string {
@@ -130,12 +136,7 @@ export function parseInterval(value: string | null | undefined, fallback = "1d")
 }
 
 export function parseActionTypeResult(value: string | null | undefined): AppResult<string | null> {
-  const actionType = trim(value ?? "") || null;
-  if (actionType && !VALID_ACTION_TYPES.has(actionType)) {
-    return err(new HttpError(400, `type が不正です: ${actionType}`));
-  }
-
-  return ok(actionType);
+  return parseZodResult(actionTypeSchema, value ?? undefined);
 }
 
 export function parseActionType(value: string | null | undefined): string | null {
@@ -145,44 +146,7 @@ export function parseActionType(value: string | null | undefined): string | null
 export function validateHistoryRequestResult(
   input: HistorySyncRequest,
 ): AppResult<Required<HistorySyncRequest>> {
-  return normalizeSymbolResult(input.symbol).andThen((symbol) => {
-    return parseIntervalResult(input.interval).andThen((interval) => {
-      const range = trim(input.range ?? "");
-      const start = trim(input.start ?? "");
-      const end = trim(input.end ?? "");
-      if (!range && !start && !end) {
-        return ok({
-          symbol,
-          interval,
-          range: "1mo",
-          start: "",
-          end: "",
-          includePrePost: input.includePrePost ?? false,
-        });
-      }
-
-      if (range && (start || end)) {
-        return err(new HttpError(400, "range と start/end は同時に指定できません"));
-      }
-
-      if (start && Number.isNaN(new Date(start).getTime())) {
-        return err(new HttpError(400, `start が不正です: ${start}`));
-      }
-
-      if (end && Number.isNaN(new Date(end).getTime())) {
-        return err(new HttpError(400, `end が不正です: ${end}`));
-      }
-
-      return ok({
-        symbol,
-        interval,
-        range,
-        start,
-        end,
-        includePrePost: input.includePrePost ?? false,
-      });
-    });
-  });
+  return parseZodResult(historySyncRequestSchema, input);
 }
 
 export function validateHistoryRequest(input: HistorySyncRequest): Required<HistorySyncRequest> {

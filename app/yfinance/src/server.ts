@@ -1,19 +1,21 @@
-import { err, errAsync, ok, okAsync, ResultAsync } from "neverthrow";
+import { zValidator } from "@hono/zod-validator";
+import { Hono } from "hono";
 import { YFinanceDatabase } from "./db";
+import {
+  actionsQuerySchema,
+  batchSyncRequestSchema,
+  formatZodError,
+  historySyncRequestSchema,
+  instrumentParamSchema,
+  pricesQuerySchema,
+  quoteSyncRequestSchema,
+  serverConfigSchema,
+  syncRunsQuerySchema,
+} from "./schemas";
 import { readSyncJobConfig, SyncJob } from "./sync-job";
 import { syncBatch, syncHistory, syncQuote } from "./sync-service";
-import { type BatchSyncRequest, type HistorySyncRequest, type QuoteSyncRequest } from "./types";
 import { YahooFinanceClient } from "./yahoo-client";
-import {
-  type AppResult,
-  HttpError,
-  json,
-  normalizeSymbolResult,
-  parseActionTypeResult,
-  parseIntervalResult,
-  parseJsonBodyResult,
-  parseLimitResult,
-} from "./utils";
+import { HttpError } from "./utils";
 
 type AppDependencies = {
   db: YFinanceDatabase;
@@ -22,202 +24,149 @@ type AppDependencies = {
   logger?: Pick<Console, "error" | "log">;
 };
 
-type RouteResult = ResultAsync<Response, unknown>;
-
-function toAsyncResult<T>(result: AppResult<T>): ResultAsync<T, HttpError> {
-  return result.match(
-    (value) => okAsync(value),
-    (error) => errAsync(error),
-  );
+function jsonError(message: string, status: number): Response {
+  return Response.json({ error: message }, { status });
 }
 
-function runAsync<T>(work: () => Promise<T>): ResultAsync<T, unknown> {
-  return ResultAsync.fromPromise(work(), (error) => error);
+function validationHook(result: { success: boolean; error?: unknown }) {
+  if (result.success) {
+    return;
+  }
+
+  if (result.error && typeof result.error === "object" && "issues" in result.error) {
+    return jsonError(formatZodError(result.error as any), 400);
+  }
+
+  return jsonError("リクエストが不正です", 400);
 }
 
-function handlePricesRequest(db: YFinanceDatabase, url: URL): AppResult<Response> {
-  return normalizeSymbolResult(url.searchParams.get("symbol")).andThen((symbol) => {
-    return parseIntervalResult(url.searchParams.get("interval")).andThen((interval) => {
-      return parseLimitResult(url.searchParams.get("limit"), {
-        defaultValue: 500,
-        max: 5000,
-      }).map((limit) => {
-        const prices = db.getPrices({
-          symbol,
-          interval,
-          from: url.searchParams.get("from"),
-          to: url.searchParams.get("to"),
-          limit,
-        });
-
-        return json({
-          symbol,
-          interval,
-          count: prices.length,
-          prices,
-        });
-      });
-    });
-  });
-}
-
-function handleActionsRequest(db: YFinanceDatabase, url: URL): AppResult<Response> {
-  return normalizeSymbolResult(url.searchParams.get("symbol")).andThen((symbol) => {
-    return parseActionTypeResult(url.searchParams.get("type")).andThen((actionType) => {
-      return parseLimitResult(url.searchParams.get("limit"), {
-        defaultValue: 500,
-        max: 5000,
-      }).map((limit) => {
-        const actions = db.getCorporateActions({
-          symbol,
-          actionType,
-          from: url.searchParams.get("from"),
-          to: url.searchParams.get("to"),
-          limit,
-        });
-
-        return json({
-          symbol,
-          actionType,
-          count: actions.length,
-          actions,
-        });
-      });
-    });
-  });
-}
-
-function handleSyncRunsRequest(db: YFinanceDatabase, url: URL): AppResult<Response> {
-  return parseLimitResult(url.searchParams.get("limit"), {
-    defaultValue: 20,
-    max: 200,
-  }).map((limit) => {
-    const runs = db.getSyncJobRuns(limit);
-    return json({
-      count: runs.length,
-      runs,
-    });
-  });
-}
-
-function handleInstrumentRequest(db: YFinanceDatabase, path: string): AppResult<Response> {
-  return normalizeSymbolResult(decodeURIComponent(path.split("/").pop() || "")).andThen(
-    (symbol) => {
-      const instrument = db.getInstrument(symbol);
-      if (!instrument) {
-        return err(new HttpError(404, "instrument が見つかりません"));
-      }
-
-      return ok(json(instrument));
-    },
-  );
-}
-
-function handleHistorySyncRequest(
-  db: YFinanceDatabase,
-  yahoo: YahooFinanceClient,
+async function parseJsonWithSchema<T>(
   request: Request,
-): RouteResult {
-  return parseJsonBodyResult<HistorySyncRequest>(request)
-    .andThen((body) => runAsync(() => syncHistory(db, yahoo, body)))
-    .map((result) => json(result));
-}
-
-function handleQuoteSyncRequest(
-  db: YFinanceDatabase,
-  yahoo: YahooFinanceClient,
-  request: Request,
-): RouteResult {
-  return parseJsonBodyResult<QuoteSyncRequest>(request)
-    .andThen((body) => runAsync(() => syncQuote(db, yahoo, body)))
-    .map((result) => json(result));
-}
-
-function handleBatchSyncRequest(
-  db: YFinanceDatabase,
-  yahoo: YahooFinanceClient,
-  request: Request,
-): RouteResult {
-  return parseJsonBodyResult<BatchSyncRequest>(request)
-    .andThen((body) => runAsync(() => syncBatch(db, yahoo, body)))
-    .map((result) => json(result));
-}
-
-function handleManualSyncRequest(syncJob: SyncJob): RouteResult {
-  const state = syncJob.snapshot();
-  if (state.symbols.length === 0) {
-    return errAsync(new HttpError(400, "SYNC_SYMBOLS が未設定です"));
+  schema: {
+    safeParse: (input: unknown) => { success: true; data: T } | { success: false; error: unknown };
+  },
+): Promise<T> {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    throw new HttpError(400, "JSON ボディが不正です");
   }
 
-  return runAsync(() => syncJob.run("manual")).map((result) => json(result));
-}
-
-function routeRequest(
-  request: Request,
-  { db, yahoo, syncJob }: Pick<AppDependencies, "db" | "yahoo" | "syncJob">,
-): RouteResult {
-  const url = new URL(request.url);
-  const path = url.pathname;
-
-  if (request.method === "GET" && path === "/healthz") {
-    return okAsync(json({ ok: true }));
+  const result = schema.safeParse(body);
+  if (!result.success) {
+    throw new HttpError(400, formatZodError(result.error as any));
   }
 
-  if (request.method === "POST" && path === "/api/v1/sync/history") {
-    return handleHistorySyncRequest(db, yahoo, request);
-  }
-
-  if (request.method === "POST" && path === "/api/v1/sync/quote") {
-    return handleQuoteSyncRequest(db, yahoo, request);
-  }
-
-  if (request.method === "POST" && path === "/api/v1/sync/batch") {
-    return handleBatchSyncRequest(db, yahoo, request);
-  }
-
-  if (request.method === "GET" && path === "/api/v1/prices") {
-    return toAsyncResult(handlePricesRequest(db, url));
-  }
-
-  if (request.method === "GET" && path === "/api/v1/actions") {
-    return toAsyncResult(handleActionsRequest(db, url));
-  }
-
-  if (request.method === "GET" && path === "/api/v1/jobs/sync") {
-    return okAsync(json(syncJob.snapshot()));
-  }
-
-  if (request.method === "GET" && path === "/api/v1/jobs/sync/runs") {
-    return toAsyncResult(handleSyncRunsRequest(db, url));
-  }
-
-  if (request.method === "POST" && path === "/api/v1/jobs/sync/run") {
-    return handleManualSyncRequest(syncJob);
-  }
-
-  if (request.method === "GET" && path.startsWith("/api/v1/instruments/")) {
-    return toAsyncResult(handleInstrumentRequest(db, path));
-  }
-
-  return errAsync(new HttpError(404, "endpoint が見つかりません"));
+  return result.data;
 }
 
 export function createApp({ db, yahoo, syncJob, logger = console }: AppDependencies) {
-  return {
-    async fetch(request: Request) {
-      return routeRequest(request, { db, yahoo, syncJob }).match(
-        (response) => response,
-        (error) => {
-          if (error instanceof HttpError) {
-            return json({ error: error.message }, { status: error.status });
-          }
+  const app = new Hono();
 
-          logger.error(error);
-          return json({ error: "internal server error" }, { status: 500 });
-        },
-      );
+  app.onError((error, _c) => {
+    if (error instanceof HttpError) {
+      return jsonError(error.message, error.status);
+    }
+
+    logger.error(error);
+    return jsonError("internal server error", 500);
+  });
+
+  app.notFound((_c) => {
+    return jsonError("endpoint が見つかりません", 404);
+  });
+
+  app.get("/healthz", (c) => {
+    return c.json({ ok: true });
+  });
+
+  app.post("/api/v1/sync/history", async (c) => {
+    const body = await parseJsonWithSchema(c.req.raw, historySyncRequestSchema);
+    return c.json(await syncHistory(db, yahoo, body));
+  });
+
+  app.post("/api/v1/sync/quote", async (c) => {
+    const body = await parseJsonWithSchema(c.req.raw, quoteSyncRequestSchema);
+    return c.json(await syncQuote(db, yahoo, body));
+  });
+
+  app.post("/api/v1/sync/batch", async (c) => {
+    const body = await parseJsonWithSchema(c.req.raw, batchSyncRequestSchema);
+    return c.json(await syncBatch(db, yahoo, body));
+  });
+
+  app.get("/api/v1/prices", zValidator("query", pricesQuerySchema, validationHook), (c) => {
+    const query = c.req.valid("query");
+    const prices = db.getPrices(query);
+
+    return c.json({
+      symbol: query.symbol,
+      interval: query.interval,
+      count: prices.length,
+      prices,
+    });
+  });
+
+  app.get("/api/v1/actions", zValidator("query", actionsQuerySchema, validationHook), (c) => {
+    const query = c.req.valid("query");
+    const actions = db.getCorporateActions({
+      symbol: query.symbol,
+      actionType: query.type,
+      from: query.from,
+      to: query.to,
+      limit: query.limit,
+    });
+
+    return c.json({
+      symbol: query.symbol,
+      actionType: query.type,
+      count: actions.length,
+      actions,
+    });
+  });
+
+  app.get("/api/v1/jobs/sync", (c) => {
+    return c.json(syncJob.snapshot());
+  });
+
+  app.get(
+    "/api/v1/jobs/sync/runs",
+    zValidator("query", syncRunsQuerySchema, validationHook),
+    (c) => {
+      const query = c.req.valid("query");
+      const runs = db.getSyncJobRuns(query.limit);
+
+      return c.json({
+        count: runs.length,
+        runs,
+      });
     },
-  };
+  );
+
+  app.post("/api/v1/jobs/sync/run", async (c) => {
+    if (syncJob.snapshot().symbols.length === 0) {
+      throw new HttpError(400, "SYNC_SYMBOLS が未設定です");
+    }
+
+    return c.json(await syncJob.run("manual"));
+  });
+
+  app.get(
+    "/api/v1/instruments/:symbol",
+    zValidator("param", instrumentParamSchema, validationHook),
+    (c) => {
+      const { symbol } = c.req.valid("param");
+      const instrument = db.getInstrument(symbol);
+      if (!instrument) {
+        throw new HttpError(404, "instrument が見つかりません");
+      }
+
+      return c.json(instrument);
+    },
+  );
+
+  return app;
 }
 
 export function createServer(dependencies?: Partial<AppDependencies>) {
@@ -229,7 +178,11 @@ export function createServer(dependencies?: Partial<AppDependencies>) {
     syncJob.start();
   }
 
-  const port = Number(process.env.PORT || 3000);
+  const config = serverConfigSchema.safeParse(process.env);
+  if (!config.success) {
+    throw new Error(formatZodError(config.error));
+  }
+
   const app = createApp({
     db,
     yahoo,
@@ -238,7 +191,7 @@ export function createServer(dependencies?: Partial<AppDependencies>) {
   });
 
   const server = Bun.serve({
-    port,
+    port: config.data.PORT,
     idleTimeout: 30,
     fetch: app.fetch,
   });
