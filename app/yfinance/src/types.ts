@@ -36,6 +36,17 @@ export type QuoteSyncRequest = {
   modules?: string[];
 };
 
+export type BatchSyncRequest = {
+  symbols: string[];
+  interval?: string;
+  range?: string;
+  start?: string;
+  end?: string;
+  includePrePost?: boolean;
+  modules?: string[];
+  skipQuote?: boolean;
+};
+
 export type InstrumentRecord = {
   symbol: string;
   quoteType: string | null;

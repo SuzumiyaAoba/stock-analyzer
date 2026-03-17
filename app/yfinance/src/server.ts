@@ -1,8 +1,10 @@
 import { YFinanceDatabase } from "./db";
 import { readSyncJobConfig, SyncJob } from "./sync-job";
+import { syncBatch, syncHistory, syncQuote } from "./sync-service";
 import {
   VALID_ACTION_TYPES,
   VALID_INTERVALS,
+  type BatchSyncRequest,
   type HistorySyncRequest,
   type QuoteSyncRequest,
 } from "./types";
@@ -12,7 +14,6 @@ import {
   json,
   normalizeSymbol,
   parseJsonBody,
-  validateHistoryRequest,
 } from "./utils";
 
 const db = new YFinanceDatabase();
@@ -21,36 +22,6 @@ const syncJob = new SyncJob(db, yahoo, readSyncJobConfig());
 syncJob.start();
 
 const port = Number(process.env.PORT || 3000);
-
-async function syncHistory(body: HistorySyncRequest) {
-  const input = validateHistoryRequest(body);
-  const result = await yahoo.syncHistory(input);
-
-  db.upsertInstrument(result.instrument);
-  db.upsertPriceBars(result.bars);
-  db.upsertCorporateActions(result.actions);
-
-  return {
-    symbol: result.instrument.symbol,
-    interval: input.interval,
-    barsInserted: result.bars.length,
-    actionsInserted: result.actions.length,
-  };
-}
-
-async function syncQuote(body: QuoteSyncRequest) {
-  const symbol = normalizeSymbol(body.symbol);
-  const modules = body.modules?.length ? body.modules : undefined;
-  const result = await yahoo.syncQuote(symbol, modules);
-
-  db.upsertInstrument(result.instrument);
-  db.insertQuoteSnapshot(result.snapshot);
-
-  return {
-    symbol,
-    asOf: result.snapshot.asOf,
-  };
-}
 
 const server = Bun.serve({
   port,
@@ -66,12 +37,17 @@ const server = Bun.serve({
 
       if (request.method === "POST" && path === "/api/v1/sync/history") {
         const body = await parseJsonBody<HistorySyncRequest>(request);
-        return json(await syncHistory(body));
+        return json(await syncHistory(db, yahoo, body));
       }
 
       if (request.method === "POST" && path === "/api/v1/sync/quote") {
         const body = await parseJsonBody<QuoteSyncRequest>(request);
-        return json(await syncQuote(body));
+        return json(await syncQuote(db, yahoo, body));
+      }
+
+      if (request.method === "POST" && path === "/api/v1/sync/batch") {
+        const body = await parseJsonBody<BatchSyncRequest>(request);
+        return json(await syncBatch(db, yahoo, body));
       }
 
       if (request.method === "GET" && path === "/api/v1/prices") {
@@ -120,8 +96,22 @@ const server = Bun.serve({
         return json(syncJob.snapshot());
       }
 
+      if (request.method === "GET" && path === "/api/v1/jobs/sync/runs") {
+        const limit = url.searchParams.get("limit")
+          ? Number(url.searchParams.get("limit"))
+          : 20;
+        const runs = db.getSyncJobRuns(limit);
+        return json({
+          count: runs.length,
+          runs,
+        });
+      }
+
       if (request.method === "POST" && path === "/api/v1/jobs/sync/run") {
-        const state = await syncJob.run();
+        if (syncJob.snapshot().symbols.length === 0) {
+          throw new HttpError(400, "SYNC_SYMBOLS が未設定です");
+        }
+        const state = await syncJob.run("manual");
         return json(state);
       }
 

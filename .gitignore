@@ -1,0 +1,6 @@
+node_modules/
+app/*/node_modules/
+.DS_Store
+app/yfinance/data/*.sqlite
+app/yfinance/data/*.sqlite-shm
+app/yfinance/data/*.sqlite-wal

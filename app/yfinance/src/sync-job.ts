@@ -1,4 +1,5 @@
 import type { YFinanceDatabase } from "./db";
+import { syncSymbol, type SymbolSyncResult } from "./sync-service";
 import type { YahooFinanceClient } from "./yahoo-client";
 
 type SyncJobConfig = {
@@ -9,13 +10,6 @@ type SyncJobConfig = {
   historyRange: string;
   includePrePost: boolean;
   runOnStart: boolean;
-};
-
-type SymbolRunResult = {
-  symbol: string;
-  barsInserted: number;
-  actionsInserted: number;
-  quoteAsOf: string;
 };
 
 type SyncJobState = {
@@ -29,7 +23,7 @@ type SyncJobState = {
   lastRunStartedAt: string | null;
   lastRunFinishedAt: string | null;
   lastRunError: string | null;
-  lastRunResults: SymbolRunResult[];
+  lastRunResults: SymbolSyncResult[];
 };
 
 export class SyncJob {
@@ -71,7 +65,7 @@ export class SyncJob {
     }, this.config.intervalMs);
   }
 
-  async run(): Promise<SyncJobState> {
+  async run(source = "scheduler"): Promise<SyncJobState> {
     if (this.state.isRunning) {
       return this.snapshot();
     }
@@ -81,35 +75,48 @@ export class SyncJob {
     this.state.lastRunFinishedAt = null;
     this.state.lastRunError = null;
 
-    const results: SymbolRunResult[] = [];
+    const results: SymbolSyncResult[] = [];
+    const runId = this.db.createSyncJobRun({
+      source,
+      startedAt: this.state.lastRunStartedAt,
+      status: "running",
+      symbolCount: this.config.symbols.length,
+    });
 
     try {
       for (const symbol of this.config.symbols) {
-        const history = await this.yahoo.syncHistory({
-          symbol,
-          interval: this.config.historyInterval,
-          range: this.config.historyRange,
-          includePrePost: this.config.includePrePost,
-        });
-        this.db.upsertInstrument(history.instrument);
-        this.db.upsertPriceBars(history.bars);
-        this.db.upsertCorporateActions(history.actions);
-
-        const quote = await this.yahoo.syncQuote(symbol);
-        this.db.upsertInstrument(quote.instrument);
-        this.db.insertQuoteSnapshot(quote.snapshot);
-
-        results.push({
-          symbol,
-          barsInserted: history.bars.length,
-          actionsInserted: history.actions.length,
-          quoteAsOf: quote.snapshot.asOf,
-        });
+        results.push(
+          await syncSymbol(this.db, this.yahoo, {
+            symbol,
+            history: {
+              symbol,
+              interval: this.config.historyInterval,
+              range: this.config.historyRange,
+              start: "",
+              end: "",
+              includePrePost: this.config.includePrePost,
+            },
+          }),
+        );
       }
 
       this.state.lastRunResults = results;
+      this.db.finishSyncJobRun({
+        id: runId,
+        finishedAt: new Date().toISOString(),
+        status: "success",
+        errorMessage: null,
+        resultsJson: JSON.stringify(results),
+      });
     } catch (error) {
       this.state.lastRunError = error instanceof Error ? error.message : String(error);
+      this.db.finishSyncJobRun({
+        id: runId,
+        finishedAt: new Date().toISOString(),
+        status: "error",
+        errorMessage: this.state.lastRunError,
+        resultsJson: JSON.stringify(results),
+      });
     } finally {
       this.state.isRunning = false;
       this.state.lastRunFinishedAt = new Date().toISOString();
