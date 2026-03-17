@@ -1,6 +1,9 @@
 node_modules/
 app/*/node_modules/
+dist/
 .DS_Store
+.env
+.env.*
 app/yfinance/data/*.sqlite
 app/yfinance/data/*.sqlite-shm
 app/yfinance/data/*.sqlite-wal

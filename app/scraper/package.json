@@ -1,0 +1,40 @@
+{
+  "name": "@stock-analyzer/scraper",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Scraper service for stock-analyzer",
+  "keywords": [
+    "playwright",
+    "scraper",
+    "typescript"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "precheck": "node -e \"import('node:fs').then((fs) => fs.rmSync('dist', { recursive: true, force: true }))\"",
+    "build": "tsc -p tsconfig.json",
+    "check": "vp check && tsc --noEmit -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "fmt": "vp fmt",
+    "lint": "vp lint",
+    "start": "tsx src/index.ts",
+    "playwright:install": "playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.58.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vite": "npm:@voidzero-dev/vite-plus-core@0.1.11",
+    "vite-plus": "0.1.11",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@0.1.11"
+  },
+  "overrides": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@0.1.11",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@0.1.11"
+  },
+  "packageManager": "npm@10.9.4"
+}
