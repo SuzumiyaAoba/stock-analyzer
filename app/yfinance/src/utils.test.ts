@@ -1,5 +1,17 @@
 import { describe, expect, it } from "bun:test";
-import { HttpError, asNumber, isObject, normalizeSymbol, parseJsonBody, unwrapYahooValue, validateHistoryRequest, validateSymbols } from "./utils";
+import {
+  HttpError,
+  asNumber,
+  isObject,
+  normalizeSymbol,
+  parseActionType,
+  parseInterval,
+  parseJsonBody,
+  parseLimit,
+  unwrapYahooValue,
+  validateHistoryRequest,
+  validateSymbols,
+} from "./utils";
 
 describe("utils", () => {
   it("normalizeSymbol は大文字化して返す", () => {
@@ -12,6 +24,25 @@ describe("utils", () => {
 
   it("validateSymbols は重複を除去して大文字化する", () => {
     expect(validateSymbols(["aapl", "AAPL", " msft "])).toEqual(["AAPL", "MSFT"]);
+  });
+
+  it("parseLimit は空値ならデフォルト値を返す", () => {
+    expect(parseLimit(null, { defaultValue: 20, max: 200 })).toBe(20);
+  });
+
+  it("parseLimit は範囲外や非整数を拒否する", () => {
+    expect(() =>
+      parseLimit("1.5", { defaultValue: 20, max: 200 }),
+    ).toThrow(HttpError);
+    expect(() =>
+      parseLimit("0", { defaultValue: 20, max: 200 }),
+    ).toThrow(HttpError);
+  });
+
+  it("parseInterval と parseActionType は許可値を返す", () => {
+    expect(parseInterval(" 1wk ")).toBe("1wk");
+    expect(parseActionType(" dividend ")).toBe("dividend");
+    expect(parseActionType("")).toBeNull();
   });
 
   it("validateHistoryRequest はデフォルト値を補う", () => {

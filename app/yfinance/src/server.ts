@@ -2,8 +2,6 @@ import { YFinanceDatabase } from "./db";
 import { readSyncJobConfig, SyncJob } from "./sync-job";
 import { syncBatch, syncHistory, syncQuote } from "./sync-service";
 import {
-  VALID_ACTION_TYPES,
-  VALID_INTERVALS,
   type BatchSyncRequest,
   type HistorySyncRequest,
   type QuoteSyncRequest,
@@ -13,6 +11,9 @@ import {
   HttpError,
   json,
   normalizeSymbol,
+  parseActionType,
+  parseInterval,
+  parseLimit,
   parseJsonBody,
 } from "./utils";
 
@@ -22,6 +23,73 @@ type AppDependencies = {
   syncJob: SyncJob;
   logger?: Pick<Console, "error" | "log">;
 };
+
+function handlePricesRequest(db: YFinanceDatabase, url: URL): Response {
+  const symbol = normalizeSymbol(url.searchParams.get("symbol"));
+  const interval = parseInterval(url.searchParams.get("interval"));
+  const prices = db.getPrices({
+    symbol,
+    interval,
+    from: url.searchParams.get("from"),
+    to: url.searchParams.get("to"),
+    limit: parseLimit(url.searchParams.get("limit"), {
+      defaultValue: 500,
+      max: 5000,
+    }),
+  });
+
+  return json({
+    symbol,
+    interval,
+    count: prices.length,
+    prices,
+  });
+}
+
+function handleActionsRequest(db: YFinanceDatabase, url: URL): Response {
+  const symbol = normalizeSymbol(url.searchParams.get("symbol"));
+  const actionType = parseActionType(url.searchParams.get("type"));
+  const actions = db.getCorporateActions({
+    symbol,
+    actionType,
+    from: url.searchParams.get("from"),
+    to: url.searchParams.get("to"),
+    limit: parseLimit(url.searchParams.get("limit"), {
+      defaultValue: 500,
+      max: 5000,
+    }),
+  });
+
+  return json({
+    symbol,
+    actionType,
+    count: actions.length,
+    actions,
+  });
+}
+
+function handleSyncRunsRequest(db: YFinanceDatabase, url: URL): Response {
+  const runs = db.getSyncJobRuns(
+    parseLimit(url.searchParams.get("limit"), {
+      defaultValue: 20,
+      max: 200,
+    }),
+  );
+
+  return json({
+    count: runs.length,
+    runs,
+  });
+}
+
+function handleInstrumentRequest(db: YFinanceDatabase, path: string): Response {
+  const symbol = normalizeSymbol(decodeURIComponent(path.split("/").pop() || ""));
+  const instrument = db.getInstrument(symbol);
+  if (!instrument) {
+    throw new HttpError(404, "instrument が見つかりません");
+  }
+  return json(instrument);
+}
 
 export function createApp({
   db,
@@ -55,45 +123,11 @@ export function createApp({
         }
 
         if (request.method === "GET" && path === "/api/v1/prices") {
-          const symbol = normalizeSymbol(url.searchParams.get("symbol"));
-          const interval = url.searchParams.get("interval")?.trim() || "1d";
-          if (!VALID_INTERVALS.has(interval)) {
-            throw new HttpError(400, `interval が不正です: ${interval}`);
-          }
-          const from = url.searchParams.get("from");
-          const to = url.searchParams.get("to");
-          const limit = url.searchParams.get("limit")
-            ? Number(url.searchParams.get("limit"))
-            : undefined;
-
-          const prices = db.getPrices({ symbol, interval, from, to, limit });
-          return json({
-            symbol,
-            interval,
-            count: prices.length,
-            prices,
-          });
+          return handlePricesRequest(db, url);
         }
 
         if (request.method === "GET" && path === "/api/v1/actions") {
-          const symbol = normalizeSymbol(url.searchParams.get("symbol"));
-          const actionType = url.searchParams.get("type")?.trim() || null;
-          if (actionType && !VALID_ACTION_TYPES.has(actionType)) {
-            throw new HttpError(400, `type が不正です: ${actionType}`);
-          }
-          const from = url.searchParams.get("from");
-          const to = url.searchParams.get("to");
-          const limit = url.searchParams.get("limit")
-            ? Number(url.searchParams.get("limit"))
-            : undefined;
-
-          const actions = db.getCorporateActions({ symbol, actionType, from, to, limit });
-          return json({
-            symbol,
-            actionType,
-            count: actions.length,
-            actions,
-          });
+          return handleActionsRequest(db, url);
         }
 
         if (request.method === "GET" && path === "/api/v1/jobs/sync") {
@@ -101,14 +135,7 @@ export function createApp({
         }
 
         if (request.method === "GET" && path === "/api/v1/jobs/sync/runs") {
-          const limit = url.searchParams.get("limit")
-            ? Number(url.searchParams.get("limit"))
-            : 20;
-          const runs = db.getSyncJobRuns(limit);
-          return json({
-            count: runs.length,
-            runs,
-          });
+          return handleSyncRunsRequest(db, url);
         }
 
         if (request.method === "POST" && path === "/api/v1/jobs/sync/run") {
@@ -120,12 +147,7 @@ export function createApp({
         }
 
         if (request.method === "GET" && path.startsWith("/api/v1/instruments/")) {
-          const symbol = normalizeSymbol(decodeURIComponent(path.split("/").pop() || ""));
-          const instrument = db.getInstrument(symbol);
-          if (!instrument) {
-            throw new HttpError(404, "instrument が見つかりません");
-          }
-          return json(instrument);
+          return handleInstrumentRequest(db, path);
         }
 
         throw new HttpError(404, "endpoint が見つかりません");
