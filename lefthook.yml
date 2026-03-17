@@ -3,3 +3,6 @@ pre-commit:
     - name: scraper check
       root: app/scraper/
       run: npm run check
+    - name: yfinance check
+      root: app/yfinance/
+      run: npm run check

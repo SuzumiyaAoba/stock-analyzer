@@ -3,10 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "vp check && tsc --noEmit -p tsconfig.json",
+    "check": "npm exec -- vp check && tsc --noEmit -p tsconfig.json",
     "dev": "bun --watch src/server.ts",
-    "fmt": "vp fmt",
-    "lint": "vp lint",
+    "fmt": "npm exec -- vp fmt",
+    "lint": "npm exec -- vp lint",
     "start": "bun src/server.ts",
     "test": "bun test"
   },

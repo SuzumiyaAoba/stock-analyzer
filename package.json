@@ -6,9 +6,9 @@
   "license": "MIT",
   "packageManager": "npm@10.9.4",
   "scripts": {
-    "prepare": "lefthook install",
-    "hooks:install": "lefthook install",
-    "hooks:pre-commit": "lefthook run pre-commit"
+    "prepare": "npm exec -- lefthook install",
+    "hooks:install": "npm exec -- lefthook install",
+    "hooks:pre-commit": "npm exec -- lefthook run pre-commit"
   },
   "devDependencies": {
     "lefthook": "1.13.0"
