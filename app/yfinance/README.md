@@ -49,6 +49,19 @@ bun run dev
 }
 ```
 
+### `POST /api/v1/sync/batch`
+
+複数銘柄をまとめて価格・スナップショット同期します。
+
+```json
+{
+  "symbols": ["AAPL", "MSFT"],
+  "interval": "1d",
+  "range": "1mo",
+  "skipQuote": false
+}
+```
+
 ### `GET /api/v1/prices?symbol=AAPL&interval=1d&limit=100`
 
 保存済みの価格データを返します。
@@ -67,4 +80,8 @@ bun run dev
 
 ### `POST /api/v1/jobs/sync/run`
 
-定期同期ジョブを即時実行します。
+定期同期ジョブを即時実行します。`SYNC_SYMBOLS` が設定されている必要があります。
+
+### `GET /api/v1/jobs/sync/runs?limit=20`
+
+定期同期ジョブの実行履歴を返します。

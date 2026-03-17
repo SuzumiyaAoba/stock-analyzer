@@ -75,6 +75,20 @@ export class YFinanceDatabase {
 
       CREATE INDEX IF NOT EXISTS idx_quote_snapshots_latest
       ON quote_snapshots (symbol, as_of DESC);
+
+      CREATE TABLE IF NOT EXISTS sync_job_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        status TEXT NOT NULL,
+        symbol_count INTEGER NOT NULL,
+        error_message TEXT,
+        results_json TEXT NOT NULL DEFAULT '[]'
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_sync_job_runs_started_at
+      ON sync_job_runs (started_at DESC);
     `);
   }
 
@@ -352,5 +366,83 @@ export class YFinanceDatabase {
         LIMIT ?
       `)
       .all(...values) as Record<string, unknown>[];
+  }
+
+  createSyncJobRun(input: {
+    source: string;
+    startedAt: string;
+    status: string;
+    symbolCount: number;
+  }): number {
+    const result = this.db
+      .query(`
+        INSERT INTO sync_job_runs (
+          source, started_at, status, symbol_count
+        )
+        VALUES (?, ?, ?, ?)
+      `)
+      .run(input.source, input.startedAt, input.status, input.symbolCount);
+
+    return Number(result.lastInsertRowid);
+  }
+
+  finishSyncJobRun(input: {
+    id: number;
+    finishedAt: string;
+    status: string;
+    errorMessage: string | null;
+    resultsJson: string;
+  }): void {
+    this.db
+      .query(`
+        UPDATE sync_job_runs
+        SET
+          finished_at = ?,
+          status = ?,
+          error_message = ?,
+          results_json = ?
+        WHERE id = ?
+      `)
+      .run(
+        input.finishedAt,
+        input.status,
+        input.errorMessage,
+        input.resultsJson,
+        input.id,
+      );
+  }
+
+  getSyncJobRuns(limit = 20): Record<string, unknown>[] {
+    return this.db
+      .query(`
+        SELECT
+          id,
+          source,
+          started_at AS startedAt,
+          finished_at AS finishedAt,
+          status,
+          symbol_count AS symbolCount,
+          error_message AS errorMessage,
+          results_json AS resultsJson
+        FROM sync_job_runs
+        ORDER BY started_at DESC
+        LIMIT ?
+      `)
+      .all(Math.min(Math.max(limit, 1), 200))
+      .map((row) => {
+        const record = row as Record<string, unknown>;
+        const results =
+          typeof record.resultsJson === "string" ? JSON.parse(record.resultsJson) : [];
+        return {
+          id: record.id,
+          source: record.source,
+          startedAt: record.startedAt,
+          finishedAt: record.finishedAt,
+          status: record.status,
+          symbolCount: record.symbolCount,
+          errorMessage: record.errorMessage,
+          results,
+        };
+      });
   }
 }

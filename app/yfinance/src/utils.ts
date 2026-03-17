@@ -29,6 +29,15 @@ export function normalizeSymbol(symbol: string | null | undefined): string {
   return normalized;
 }
 
+export function validateSymbols(symbols: string[] | null | undefined): string[] {
+  if (!Array.isArray(symbols) || symbols.length === 0) {
+    throw new HttpError(400, "symbols は1件以上必要です");
+  }
+
+  const normalized = symbols.map((symbol) => normalizeSymbol(symbol));
+  return [...new Set(normalized)];
+}
+
 export function validateHistoryRequest(input: HistorySyncRequest): Required<HistorySyncRequest> {
   const symbol = normalizeSymbol(input.symbol);
   const interval = input.interval?.trim() || "1d";
