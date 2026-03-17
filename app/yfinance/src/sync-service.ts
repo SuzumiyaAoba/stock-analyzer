@@ -1,5 +1,6 @@
 import type { YFinanceDatabase } from "./db";
 import type {
+  BatchSyncRequest,
   HistorySyncRequest,
   QuoteSyncRequest,
 } from "./types";
@@ -26,15 +27,31 @@ export type SymbolSyncResult = {
   quoteAsOf: string | null;
 };
 
+type HistorySyncPayload = Awaited<ReturnType<YahooFinanceClient["syncHistory"]>>;
+type QuoteSyncPayload = Awaited<ReturnType<YahooFinanceClient["syncQuote"]>>;
+
+function persistHistoryPayload(db: YFinanceDatabase, history: HistorySyncPayload): void {
+  db.upsertInstrument(history.instrument);
+  db.upsertPriceBars(history.bars);
+  db.upsertCorporateActions(history.actions);
+}
+
+function persistQuotePayload(db: YFinanceDatabase, quote: QuoteSyncPayload): void {
+  db.upsertInstrument(quote.instrument);
+  db.insertQuoteSnapshot(quote.snapshot);
+}
+
+function normalizeQuoteModules(modules: string[] | undefined): string[] | undefined {
+  return modules?.length ? modules : undefined;
+}
+
 export async function syncSymbol(
   db: YFinanceDatabase,
   yahoo: YahooFinanceClient,
   input: SymbolSyncOptions,
 ): Promise<SymbolSyncResult> {
   const history = await yahoo.syncHistory(input.history);
-  db.upsertInstrument(history.instrument);
-  db.upsertPriceBars(history.bars);
-  db.upsertCorporateActions(history.actions);
+  persistHistoryPayload(db, history);
 
   let quoteAsOf: string | null = null;
   let quoteSynced = false;
@@ -66,10 +83,7 @@ export async function syncHistory(
 ) {
   const input = validateHistoryRequest(body);
   const history = await yahoo.syncHistory(input);
-
-  db.upsertInstrument(history.instrument);
-  db.upsertPriceBars(history.bars);
-  db.upsertCorporateActions(history.actions);
+  persistHistoryPayload(db, history);
 
   return {
     symbol: history.instrument.symbol,
@@ -85,11 +99,9 @@ export async function syncQuote(
   body: QuoteSyncRequest,
 ) {
   const symbol = normalizeSymbol(body.symbol);
-  const modules = body.modules?.length ? body.modules : undefined;
+  const modules = normalizeQuoteModules(body.modules);
   const result = await yahoo.syncQuote(symbol, modules);
-
-  db.upsertInstrument(result.instrument);
-  db.insertQuoteSnapshot(result.snapshot);
+  persistQuotePayload(db, result);
 
   return {
     symbol,
@@ -100,16 +112,7 @@ export async function syncQuote(
 export async function syncBatch(
   db: YFinanceDatabase,
   yahoo: YahooFinanceClient,
-  body: {
-    symbols: string[];
-    interval?: string;
-    range?: string;
-    start?: string;
-    end?: string;
-    includePrePost?: boolean;
-    modules?: string[];
-    skipQuote?: boolean;
-  },
+  body: BatchSyncRequest,
 ) {
   const symbols = validateSymbols(body.symbols);
   const baseHistory = validateHistoryRequest({

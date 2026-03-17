@@ -110,6 +110,18 @@ describe("server", () => {
     expect(await response.json()).toEqual({ error: "interval が不正です: bad" });
   });
 
+  it("GET /api/v1/prices は不正 limit を拒否する", async () => {
+    const app = createApp(createDependencies() as any);
+    const response = await app.fetch(
+      new Request("http://localhost/api/v1/prices?symbol=AAPL&limit=abc"),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "limit は 1 以上 5000 以下の整数で指定してください",
+    });
+  });
+
   it("POST /api/v1/sync/batch は結果を返す", async () => {
     const app = createApp(createDependencies() as any);
     const response = await app.fetch(

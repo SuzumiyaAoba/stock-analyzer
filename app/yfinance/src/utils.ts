@@ -1,4 +1,8 @@
-import { VALID_INTERVALS, type HistorySyncRequest } from "./types";
+import {
+  VALID_ACTION_TYPES,
+  VALID_INTERVALS,
+  type HistorySyncRequest,
+} from "./types";
 
 export class HttpError extends Error {
   constructor(
@@ -38,12 +42,53 @@ export function validateSymbols(symbols: string[] | null | undefined): string[] 
   return [...new Set(normalized)];
 }
 
-export function validateHistoryRequest(input: HistorySyncRequest): Required<HistorySyncRequest> {
-  const symbol = normalizeSymbol(input.symbol);
-  const interval = input.interval?.trim() || "1d";
+export function parseLimit(
+  value: string | null | undefined,
+  options: {
+    defaultValue: number;
+    min?: number;
+    max: number;
+    fieldName?: string;
+  },
+): number {
+  const {
+    defaultValue,
+    min = 1,
+    max,
+    fieldName = "limit",
+  } = options;
+
+  if (value === null || value === undefined || value.trim() === "") {
+    return defaultValue;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    throw new HttpError(400, `${fieldName} は ${min} 以上 ${max} 以下の整数で指定してください`);
+  }
+
+  return parsed;
+}
+
+export function parseInterval(value: string | null | undefined, fallback = "1d"): string {
+  const interval = value?.trim() || fallback;
   if (!VALID_INTERVALS.has(interval)) {
     throw new HttpError(400, `interval が不正です: ${interval}`);
   }
+  return interval;
+}
+
+export function parseActionType(value: string | null | undefined): string | null {
+  const actionType = value?.trim() || null;
+  if (actionType && !VALID_ACTION_TYPES.has(actionType)) {
+    throw new HttpError(400, `type が不正です: ${actionType}`);
+  }
+  return actionType;
+}
+
+export function validateHistoryRequest(input: HistorySyncRequest): Required<HistorySyncRequest> {
+  const symbol = normalizeSymbol(input.symbol);
+  const interval = parseInterval(input.interval);
 
   const range = input.range?.trim() || "";
   const start = input.start?.trim() || "";
