@@ -3,7 +3,6 @@ import {
   type AppResult,
   HttpError,
   asNumber,
-  isObject,
   normalizeSymbol,
   normalizeSymbolResult,
   parseActionType,
@@ -124,11 +123,8 @@ describe("utils", () => {
     });
   });
 
-  it("asNumber と isObject は型判定を行う", () => {
+  it("asNumber は数値だけを返す", () => {
     expect(asNumber(123)).toBe(123);
     expect(asNumber("123")).toBeNull();
-    expect(isObject({ a: 1 })).toBe(true);
-    expect(isObject(null)).toBe(false);
-    expect(isObject([1, 2])).toBe(false);
   });
 });

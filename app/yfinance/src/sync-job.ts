@@ -1,3 +1,4 @@
+import { trim } from "es-toolkit";
 import type { YFinanceDatabase } from "./db";
 import { syncSymbol, type SymbolSyncResult } from "./sync-service";
 import type { YahooFinanceClient } from "./yahoo-client";
@@ -137,7 +138,7 @@ export class SyncJob {
 export function readSyncJobConfig(): SyncJobConfig {
   const symbols = (process.env.SYNC_SYMBOLS || "")
     .split(",")
-    .map((value) => value.trim().toUpperCase())
+    .map((value) => trim(value).toUpperCase())
     .filter(Boolean);
 
   const intervalMs = Number(process.env.SYNC_INTERVAL_MS || 0);

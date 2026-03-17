@@ -1,3 +1,4 @@
+import { isNumber, trim, uniq } from "es-toolkit";
 import { err, ok, ResultAsync, type Result } from "neverthrow";
 import { VALID_ACTION_TYPES, VALID_INTERVALS, type HistorySyncRequest } from "./types";
 
@@ -42,7 +43,7 @@ export async function parseJsonBody<T>(request: Request): Promise<T> {
 }
 
 export function normalizeSymbolResult(symbol: string | null | undefined): AppResult<string> {
-  const normalized = symbol?.trim().toUpperCase();
+  const normalized = trim(symbol ?? "").toUpperCase();
   if (!normalized) {
     return err(new HttpError(400, "symbol は必須です"));
   }
@@ -68,7 +69,7 @@ export function validateSymbolsResult(symbols: string[] | null | undefined): App
     normalized.push(result.value);
   }
 
-  return ok([...new Set(normalized)]);
+  return ok(uniq(normalized));
 }
 
 export function validateSymbols(symbols: string[] | null | undefined): string[] {
@@ -86,7 +87,7 @@ export function parseLimitResult(
 ): AppResult<number> {
   const { defaultValue, min = 1, max, fieldName = "limit" } = options;
 
-  if (value === null || value === undefined || value.trim() === "") {
+  if (value === null || value === undefined || trim(value) === "") {
     return ok(defaultValue);
   }
 
@@ -116,7 +117,7 @@ export function parseIntervalResult(
   value: string | null | undefined,
   fallback = "1d",
 ): AppResult<string> {
-  const interval = value?.trim() || fallback;
+  const interval = trim(value ?? "") || fallback;
   if (!VALID_INTERVALS.has(interval)) {
     return err(new HttpError(400, `interval が不正です: ${interval}`));
   }
@@ -129,7 +130,7 @@ export function parseInterval(value: string | null | undefined, fallback = "1d")
 }
 
 export function parseActionTypeResult(value: string | null | undefined): AppResult<string | null> {
-  const actionType = value?.trim() || null;
+  const actionType = trim(value ?? "") || null;
   if (actionType && !VALID_ACTION_TYPES.has(actionType)) {
     return err(new HttpError(400, `type が不正です: ${actionType}`));
   }
@@ -146,9 +147,9 @@ export function validateHistoryRequestResult(
 ): AppResult<Required<HistorySyncRequest>> {
   return normalizeSymbolResult(input.symbol).andThen((symbol) => {
     return parseIntervalResult(input.interval).andThen((interval) => {
-      const range = input.range?.trim() || "";
-      const start = input.start?.trim() || "";
-      const end = input.end?.trim() || "";
+      const range = trim(input.range ?? "");
+      const start = trim(input.start ?? "");
+      const end = trim(input.end ?? "");
       if (!range && !start && !end) {
         return ok({
           symbol,
@@ -193,7 +194,7 @@ export function toIsoUtc(unixSeconds: number): string {
 }
 
 export function asNumber(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) {
+  if (isNumber(value) && Number.isFinite(value)) {
     return value;
   }
   return null;
@@ -220,8 +221,4 @@ export function unwrapYahooValue(value: unknown): unknown {
   return Object.fromEntries(
     Object.entries(record).map(([key, entry]) => [key, unwrapYahooValue(entry)]),
   );
-}
-
-export function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

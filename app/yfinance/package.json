@@ -11,6 +11,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "es-toolkit": "^1.45.1",
     "neverthrow": "^8.2.0"
   },
   "devDependencies": {
