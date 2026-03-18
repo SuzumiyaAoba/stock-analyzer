@@ -9,6 +9,8 @@ import type {
 import { formatPrice } from "~/lib/dashboard-formatters";
 import type { PriceBar } from "~/lib/yfinance";
 
+const useChartEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect;
+
 function toCandlestickData(prices: PriceBar[]): CandlestickData<Time>[] {
   return prices.flatMap((price) => {
     const { open, high, low, close } = price;
@@ -60,7 +62,7 @@ export function CandlestickChart({
   );
   const canRenderChart = seriesData.length >= 2;
 
-  React.useEffect(() => {
+  useChartEffect(() => {
     if (!chartContainerRef.current || !canRenderChart) {
       return;
     }
@@ -155,7 +157,7 @@ export function CandlestickChart({
     };
   }, [canRenderChart]);
 
-  React.useEffect(() => {
+  useChartEffect(() => {
     if (!canRenderChart || !chartRef.current || !seriesRef.current) {
       return;
     }

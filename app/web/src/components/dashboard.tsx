@@ -1,5 +1,6 @@
+import * as React from "react";
 import type { FormEvent } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 import { CandlestickChart } from "~/components/candlestick-chart";
 import {
   actionLimitOptions,
@@ -90,6 +91,10 @@ export function OperationsPanel({
 }>) {
   const syncJob = data.syncJob;
   const canRunSyncJob = Boolean(syncJob && syncJob.symbols.length > 0);
+  const syncSymbolId = React.useId();
+  const batchSymbolsId = React.useId();
+  const batchIntervalId = React.useId();
+  const batchRangeId = React.useId();
 
   return (
     <section className="hero-panel">
@@ -107,7 +112,7 @@ export function OperationsPanel({
           <form className="stack-form" onSubmit={onSyncSubmit}>
             <div className="sync-row">
               <input
-                id="sync-symbol"
+                id={syncSymbolId}
                 aria-label="銘柄コード"
                 className="search-input sync-input"
                 value={syncSymbolInput}
@@ -134,10 +139,10 @@ export function OperationsPanel({
             を使って複数銘柄をまとめて取得します。改行またはカンマ区切りで入力できます。
           </p>
           <form className="stack-form" onSubmit={onBatchSubmit}>
-            <label className="field" htmlFor="batch-symbols">
+            <label className="field" htmlFor={batchSymbolsId}>
               <span>銘柄コード</span>
               <textarea
-                id="batch-symbols"
+                id={batchSymbolsId}
                 className="search-input batch-textarea"
                 value={batchSymbolsInput}
                 onChange={(event) => onBatchSymbolsInputChange(event.target.value)}
@@ -146,10 +151,10 @@ export function OperationsPanel({
               />
             </label>
             <div className="form-grid">
-              <label className="field" htmlFor="batch-interval">
+              <label className="field" htmlFor={batchIntervalId}>
                 <span>足種別</span>
                 <select
-                  id="batch-interval"
+                  id={batchIntervalId}
                   className="search-input"
                   value={batchInterval}
                   onChange={(event) =>
@@ -163,10 +168,10 @@ export function OperationsPanel({
                   ))}
                 </select>
               </label>
-              <label className="field" htmlFor="batch-range">
+              <label className="field" htmlFor={batchRangeId}>
                 <span>取得期間</span>
                 <select
-                  id="batch-range"
+                  id={batchRangeId}
                   className="search-input"
                   value={batchRange}
                   onChange={(event) => onBatchRangeChange(event.target.value as SyncHistoryRange)}
@@ -305,8 +310,44 @@ export function InstrumentsPanel({
   instrumentSearchFor: (symbol: string) => DashboardSearch;
   pageSearchFor: (offset: number) => DashboardSearch;
 }>) {
+  const router = useRouter();
+  const queryInputId = React.useId();
+  const sortById = React.useId();
+  const orderId = React.useId();
+  const listLimitId = React.useId();
   const pageStart = instruments.length > 0 ? search.offset + 1 : 0;
   const pageEnd = search.offset + instruments.length;
+  const [query, setQuery] = useSyncedState(search.q ?? "");
+  const [sortBy, setSortBy] = useSyncedState(search.sortBy);
+  const [order, setOrder] = useSyncedState(search.order);
+  const [listLimit, setListLimit] = useSyncedState(search.listLimit);
+
+  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void router.navigate({
+      to: "/",
+      search: {
+        ...search,
+        q: normalizeOptionalInputValue(query),
+        symbol: undefined,
+        offset: 0,
+      },
+    });
+  }
+
+  function handleListControlsSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void router.navigate({
+      to: "/",
+      search: {
+        ...search,
+        sortBy,
+        order,
+        listLimit,
+        offset: 0,
+      },
+    });
+  }
 
   return (
     <aside className="list-panel">
@@ -318,22 +359,16 @@ export function InstrumentsPanel({
         <span className="panel-badge">{instruments.length} symbols</span>
       </div>
 
-      <form
-        key={buildFormStateKey(search.q, search.symbol, search.interval)}
-        className="search-form"
-        action="/"
-        method="get"
-      >
-        <DashboardHiddenFields search={search} omit={["q", "symbol", "offset"]} />
-        <label className="search-label" htmlFor="symbol-query">
+      <form className="search-form" onSubmit={handleSearchSubmit}>
+        <label className="search-label" htmlFor={queryInputId}>
           銘柄名またはシンボル
         </label>
         <div className="search-row">
           <input
-            id="symbol-query"
+            id={queryInputId}
             className="search-input"
-            name="q"
-            defaultValue={search.q ?? ""}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
             placeholder="AAPL, Microsoft, Tesla..."
           />
           <button className="search-button" type="submit">
@@ -342,17 +377,16 @@ export function InstrumentsPanel({
         </div>
       </form>
 
-      <form
-        key={buildFormStateKey(search.sortBy, search.order, search.listLimit)}
-        className="list-controls-form"
-        action="/"
-        method="get"
-      >
-        <DashboardHiddenFields search={search} omit={["sortBy", "order", "listLimit", "offset"]} />
+      <form className="list-controls-form" onSubmit={handleListControlsSubmit}>
         <div className="filter-grid compact">
-          <label className="field">
+          <label className="field" htmlFor={sortById}>
             <span>並び順</span>
-            <select className="search-input" name="sortBy" defaultValue={search.sortBy}>
+            <select
+              id={sortById}
+              className="search-input"
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value as DashboardSearch["sortBy"])}
+            >
               {instrumentSortOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -360,9 +394,14 @@ export function InstrumentsPanel({
               ))}
             </select>
           </label>
-          <label className="field">
+          <label className="field" htmlFor={orderId}>
             <span>順序</span>
-            <select className="search-input" name="order" defaultValue={search.order}>
+            <select
+              id={orderId}
+              className="search-input"
+              value={order}
+              onChange={(event) => setOrder(event.target.value as DashboardSearch["order"])}
+            >
               {orderOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -370,12 +409,13 @@ export function InstrumentsPanel({
               ))}
             </select>
           </label>
-          <label className="field">
+          <label className="field" htmlFor={listLimitId}>
             <span>件数</span>
             <select
+              id={listLimitId}
               className="search-input"
-              name="listLimit"
-              defaultValue={String(search.listLimit)}
+              value={String(listLimit)}
+              onChange={(event) => setListLimit(Number(event.target.value))}
             >
               {listLimitOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -460,6 +500,7 @@ export function InstrumentDetailPanel({
   intervalSearchFor: (interval: DashboardSearch["interval"]) => DashboardSearch;
   clearDetailFiltersSearchFor: SearchFactory;
 }>) {
+  const router = useRouter();
   const selected = data.selectedInstrument;
   if (!selected) {
     return (
@@ -474,8 +515,36 @@ export function InstrumentDetailPanel({
   }
 
   const latest = selected.latestQuote;
+  const selectedSymbol = selected.symbol;
   const currency = selected.currency;
   const { latestPrice, diff, diffRatio } = derivePriceChange(latest);
+  const fromInputId = React.useId();
+  const toInputId = React.useId();
+  const priceLimitId = React.useId();
+  const actionTypeId = React.useId();
+  const actionLimitId = React.useId();
+  const [from, setFrom] = useSyncedState(search.from ?? "");
+  const [to, setTo] = useSyncedState(search.to ?? "");
+  const [priceLimit, setPriceLimit] = useSyncedState(search.priceLimit);
+  const [actionType, setActionType] = useSyncedState(search.actionType);
+  const [actionLimit, setActionLimit] = useSyncedState(search.actionLimit);
+
+  function handleDetailFilterSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void router.navigate({
+      to: "/",
+      search: {
+        ...search,
+        symbol: selectedSymbol,
+        from: normalizeOptionalInputValue(from),
+        to: normalizeOptionalInputValue(to),
+        priceLimit,
+        actionType,
+        actionLimit,
+        offset: 0,
+      },
+    });
+  }
 
   return (
     <section className="detail-panel">
@@ -483,8 +552,8 @@ export function InstrumentDetailPanel({
         <div>
           <p className="panel-kicker">{selected.exchange || "Unknown Exchange"}</p>
           <h2>
-            {selected.longName || selected.shortName || selected.symbol}
-            <span className="symbol-inline">{selected.symbol}</span>
+            {selected.longName || selected.shortName || selectedSymbol}
+            <span className="symbol-inline">{selectedSymbol}</span>
           </h2>
         </div>
         <div className="interval-switches">
@@ -502,44 +571,35 @@ export function InstrumentDetailPanel({
         </div>
       </div>
 
-      <form
-        key={buildFormStateKey(
-          selected.symbol,
-          search.from,
-          search.to,
-          search.priceLimit,
-          search.actionType,
-          search.actionLimit,
-        )}
-        className="detail-filter-form"
-        action="/"
-        method="get"
-      >
-        <input type="hidden" name="symbol" value={selected.symbol} />
-        <DashboardHiddenFields
-          search={search}
-          omit={["symbol", "from", "to", "priceLimit", "actionType", "actionLimit", "offset"]}
-        />
+      <form className="detail-filter-form" onSubmit={handleDetailFilterSubmit}>
         <div className="filter-grid">
-          <label className="field">
+          <label className="field" htmlFor={fromInputId}>
             <span>開始日</span>
             <input
+              id={fromInputId}
               className="search-input"
               type="date"
-              name="from"
-              defaultValue={search.from ?? ""}
+              value={from}
+              onChange={(event) => setFrom(event.target.value)}
             />
           </label>
-          <label className="field">
+          <label className="field" htmlFor={toInputId}>
             <span>終了日</span>
-            <input className="search-input" type="date" name="to" defaultValue={search.to ?? ""} />
+            <input
+              id={toInputId}
+              className="search-input"
+              type="date"
+              value={to}
+              onChange={(event) => setTo(event.target.value)}
+            />
           </label>
-          <label className="field">
+          <label className="field" htmlFor={priceLimitId}>
             <span>価格本数</span>
             <select
+              id={priceLimitId}
               className="search-input"
-              name="priceLimit"
-              defaultValue={String(search.priceLimit)}
+              value={String(priceLimit)}
+              onChange={(event) => setPriceLimit(Number(event.target.value))}
             >
               {priceLimitOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -548,9 +608,16 @@ export function InstrumentDetailPanel({
               ))}
             </select>
           </label>
-          <label className="field">
+          <label className="field" htmlFor={actionTypeId}>
             <span>アクション種別</span>
-            <select className="search-input" name="actionType" defaultValue={search.actionType}>
+            <select
+              id={actionTypeId}
+              className="search-input"
+              value={actionType}
+              onChange={(event) =>
+                setActionType(event.target.value as DashboardSearch["actionType"])
+              }
+            >
               {actionTypeOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -558,12 +625,13 @@ export function InstrumentDetailPanel({
               ))}
             </select>
           </label>
-          <label className="field">
+          <label className="field" htmlFor={actionLimitId}>
             <span>アクション件数</span>
             <select
+              id={actionLimitId}
               className="search-input"
-              name="actionLimit"
-              defaultValue={String(search.actionLimit)}
+              value={String(actionLimit)}
+              onChange={(event) => setActionLimit(Number(event.target.value))}
             >
               {actionLimitOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -770,50 +838,6 @@ function FeedbackMessage({ feedback }: Readonly<{ feedback: Feedback }>) {
   );
 }
 
-function DashboardHiddenFields({
-  search,
-  omit = [],
-}: Readonly<{
-  search: DashboardSearch;
-  omit?: Array<keyof DashboardSearch>;
-}>) {
-  const omitted = new Set(omit);
-
-  return (
-    <>
-      {!omitted.has("q") && search.q ? <input type="hidden" name="q" value={search.q} /> : null}
-      {!omitted.has("symbol") && search.symbol ? (
-        <input type="hidden" name="symbol" value={search.symbol} />
-      ) : null}
-      {!omitted.has("interval") ? (
-        <input type="hidden" name="interval" value={search.interval} />
-      ) : null}
-      {!omitted.has("sortBy") ? <input type="hidden" name="sortBy" value={search.sortBy} /> : null}
-      {!omitted.has("order") ? <input type="hidden" name="order" value={search.order} /> : null}
-      {!omitted.has("listLimit") ? (
-        <input type="hidden" name="listLimit" value={search.listLimit} />
-      ) : null}
-      {!omitted.has("offset") ? <input type="hidden" name="offset" value={search.offset} /> : null}
-      {!omitted.has("priceLimit") ? (
-        <input type="hidden" name="priceLimit" value={search.priceLimit} />
-      ) : null}
-      {!omitted.has("actionType") ? (
-        <input type="hidden" name="actionType" value={search.actionType} />
-      ) : null}
-      {!omitted.has("actionLimit") ? (
-        <input type="hidden" name="actionLimit" value={search.actionLimit} />
-      ) : null}
-      {!omitted.has("runsLimit") ? (
-        <input type="hidden" name="runsLimit" value={search.runsLimit} />
-      ) : null}
-      {!omitted.has("from") && search.from ? (
-        <input type="hidden" name="from" value={search.from} />
-      ) : null}
-      {!omitted.has("to") && search.to ? <input type="hidden" name="to" value={search.to} /> : null}
-    </>
-  );
-}
-
 function MetricCard({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div className="metric-card">
@@ -870,8 +894,19 @@ function formatIntervalMs(value: number) {
   return `${Math.round(value / 1000)}秒`;
 }
 
-function buildFormStateKey(...values: Array<string | number | undefined>) {
-  return values.map((value) => String(value ?? "")).join(":");
+function useSyncedState<T>(value: T) {
+  const [state, setState] = React.useState(value);
+
+  React.useEffect(() => {
+    setState(value);
+  }, [value]);
+
+  return [state, setState] as const;
+}
+
+function normalizeOptionalInputValue(value: string) {
+  const normalized = value.trim();
+  return normalized === "" ? undefined : normalized;
 }
 
 function statusLabel(status: string) {
