@@ -409,31 +409,50 @@ input {
   background: var(--surface);
 }
 
-.sparkline-wrap {
+.chart-wrap {
   margin-top: 14px;
 }
 
-.sparkline {
-  display: block;
+.candlestick-chart {
   width: 100%;
-  height: 240px;
+  height: 320px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background:
-    linear-gradient(to bottom, transparent 23%, rgba(148, 163, 184, 0.12) 24%, transparent 25%),
-    linear-gradient(to right, transparent 23%, rgba(148, 163, 184, 0.12) 24%, transparent 25%), #fff;
-  background-size:
-    100% 52px,
-    72px 100%,
-    auto;
+  overflow: hidden;
+  background: #fff;
 }
 
-.sparkline-scale {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 8px;
+.chart-attribution {
+  margin: 8px 0 0;
   color: var(--text-muted);
-  font-size: 0.82rem;
+  font-size: 0.78rem;
+}
+
+.chart-attribution a {
+  margin-left: 6px;
+  color: var(--primary);
+}
+
+.chart-attribution a:hover {
+  text-decoration: underline;
+}
+
+.chart-attribution a:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.chart-card .tv-lightweight-charts {
+  border-radius: var(--radius-md);
+}
+
+.chart-card canvas {
+  display: block;
+}
+
+.chart-card table {
+  font-family: "Segoe UI", "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", sans-serif;
 }
 
 .detail-grid {
@@ -446,7 +465,7 @@ input {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  margin: 14px 0 0;
+  margin-top: 8px;
 }
 
 .stat-cell {
@@ -561,7 +580,7 @@ input {
     grid-template-columns: 1fr;
   }
 
-  .sparkline {
-    height: 220px;
+  .candlestick-chart {
+    height: 260px;
   }
 }

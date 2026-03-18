@@ -1,5 +1,6 @@
 import type { FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
+import { CandlestickChart } from "~/components/candlestick-chart";
 import { intervalOptions, labelForInterval, type DashboardSearch } from "~/lib/dashboard-config";
 import {
   actionLabel,
@@ -12,7 +13,7 @@ import {
   formatPercentChange,
   formatPrice,
 } from "~/lib/dashboard-formatters";
-import type { DashboardData, InstrumentListItem, PriceBar } from "~/lib/yfinance";
+import type { DashboardData, InstrumentListItem } from "~/lib/yfinance";
 
 type SyncFeedback = {
   type: "success" | "error";
@@ -231,7 +232,7 @@ export function InstrumentDetailPanel({
           </div>
           <p className="chart-caption">{data.prices.length} points</p>
         </div>
-        <PriceSparkline prices={data.prices} currency={currency} />
+        <CandlestickChart prices={data.prices} currency={currency} />
       </div>
 
       <div className="detail-grid">
@@ -273,67 +274,6 @@ export function InstrumentDetailPanel({
         </section>
       </div>
     </section>
-  );
-}
-
-function PriceSparkline({
-  prices,
-  currency,
-}: Readonly<{
-  prices: PriceBar[];
-  currency?: string | null;
-}>) {
-  const points = prices
-    .map((price) => price.close)
-    .filter((value): value is number => value !== null && Number.isFinite(value));
-
-  if (points.length < 2) {
-    return <div className="empty-inline">価格データが不足しています。</div>;
-  }
-
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const range = max - min || 1;
-  const polyline = points
-    .map((value, index) => {
-      const x = (index / (points.length - 1)) * 100;
-      const y = 100 - ((value - min) / range) * 100;
-      return `${x},${y}`;
-    })
-    .join(" ");
-  const first = points[0] ?? 0;
-  const last = points[points.length - 1] ?? 0;
-
-  return (
-    <div className="sparkline-wrap">
-      <svg
-        className="sparkline"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        aria-label="price chart"
-      >
-        <defs>
-          <linearGradient id="priceArea" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(37, 99, 235, 0.18)" />
-            <stop offset="100%" stopColor="rgba(37, 99, 235, 0.02)" />
-          </linearGradient>
-        </defs>
-        <polyline points={`0,100 ${polyline} 100,100`} fill="url(#priceArea)" stroke="none" />
-        <polyline
-          points={polyline}
-          fill="none"
-          stroke={last >= first ? "#2563eb" : "#dc2626"}
-          strokeWidth="2"
-          vectorEffect="non-scaling-stroke"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-      </svg>
-      <div className="sparkline-scale">
-        <span>{formatPrice(max, currency)}</span>
-        <span>{formatPrice(min, currency)}</span>
-      </div>
-    </div>
   );
 }
 
