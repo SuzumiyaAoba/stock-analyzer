@@ -1,11 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-
-const dashboardSearchSchema = z.object({
-  q: z.string().optional().default(""),
-  symbol: z.string().optional(),
-  interval: z.enum(["1d", "1wk", "1mo"]).default("1d"),
-});
+import {
+  dashboardSearchSchema,
+  type DashboardSearch,
+  type DashboardInterval,
+} from "./dashboard-config";
 
 const syncSymbolSchema = z.object({
   symbol: z
@@ -15,9 +14,7 @@ const syncSymbolSchema = z.object({
     .pipe(z.string().min(1, "symbol は必須です")),
 });
 
-type DashboardSearch = z.infer<typeof dashboardSearchSchema>;
-
-type InstrumentListItem = {
+export type InstrumentListItem = {
   symbol: string;
   quoteType: string | null;
   exchange: string | null;
@@ -43,9 +40,9 @@ type InstrumentsResponse = {
   items: InstrumentListItem[];
 };
 
-type InstrumentDetail = InstrumentListItem;
+export type InstrumentDetail = InstrumentListItem;
 
-type PriceBar = {
+export type PriceBar = {
   symbol: string;
   interval: string;
   timestampUtc: string;
@@ -64,7 +61,7 @@ type PricesResponse = {
   prices: PriceBar[];
 };
 
-type CorporateAction = {
+export type CorporateAction = {
   symbol: string;
   actionType: "dividend" | "split" | "capitalGain";
   eventAt: string;
@@ -219,10 +216,12 @@ export const getDashboardData = createServerFn({
       };
     }
 
+    const normalizedQuery = search.q?.toUpperCase();
     const selectedSymbol =
       search.symbol ||
-      instrumentsResponse.items.find((item) => item.symbol.includes(search.q.toUpperCase()))
-        ?.symbol ||
+      instrumentsResponse.items.find((item) =>
+        normalizedQuery ? item.symbol.includes(normalizedQuery) : false,
+      )?.symbol ||
       instrumentsResponse.items[0]?.symbol ||
       null;
 
@@ -245,7 +244,12 @@ export const getDashboardData = createServerFn({
       ).catch(() => null),
       fetchJson<PricesResponse>(
         `/api/v1/prices?symbol=${encodeURIComponent(selectedSymbol)}&interval=${search.interval}&limit=60`,
-      ).catch(() => ({ symbol: selectedSymbol, interval: search.interval, count: 0, prices: [] })),
+      ).catch(() => ({
+        symbol: selectedSymbol,
+        interval: search.interval as DashboardInterval,
+        count: 0,
+        prices: [],
+      })),
       fetchJson<CorporateActionsResponse>(
         `/api/v1/actions?symbol=${encodeURIComponent(selectedSymbol)}&limit=6`,
       ).catch(() => ({ symbol: selectedSymbol, actionType: null, count: 0, actions: [] })),
