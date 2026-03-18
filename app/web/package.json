@@ -10,6 +10,7 @@
     "preview": "npm exec -- vp preview",
     "start": "node .output/server/index.mjs",
     "check": "npm exec -- vp check && tsc --noEmit",
+    "test": "npm exec -- vp test",
     "fmt": "npm exec -- vp fmt",
     "lint": "npm exec -- vp lint"
   },

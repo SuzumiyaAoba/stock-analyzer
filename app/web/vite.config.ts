@@ -4,6 +4,8 @@ import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import { defineConfig } from "vite-plus";
 
+const isTest = process.env.VITEST === "true";
+
 export default defineConfig({
   fmt: {
     ignorePatterns: [".output/**", "src/routeTree.gen.ts"],
@@ -18,12 +20,14 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
-  plugins: [
-    tailwindcss(),
-    tanstackStart({
-      srcDirectory: "src",
-    }),
-    viteReact(),
-    nitro(),
-  ],
+  plugins: isTest
+    ? []
+    : [
+        tailwindcss(),
+        tanstackStart({
+          srcDirectory: "src",
+        }),
+        viteReact(),
+        nitro(),
+      ],
 });
