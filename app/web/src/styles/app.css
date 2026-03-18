@@ -101,6 +101,49 @@ input {
   line-height: 1.75;
 }
 
+.sync-form {
+  margin-top: 20px;
+  max-width: 34rem;
+}
+
+.sync-row {
+  display: flex;
+  gap: 10px;
+}
+
+.sync-input {
+  min-width: 0;
+}
+
+.sync-button {
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #1c1a17 0%, #51463f 100%);
+  color: white;
+  cursor: pointer;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sync-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.sync-feedback {
+  margin: 10px 0 0;
+  font-size: 0.92rem;
+}
+
+.sync-feedback.is-success {
+  color: #7b4b19;
+}
+
+.sync-feedback.is-error {
+  color: var(--danger);
+}
+
 .hero-meta {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -504,7 +547,15 @@ input {
     flex-direction: column;
   }
 
+  .sync-row {
+    flex-direction: column;
+  }
+
   .search-button {
+    height: 46px;
+  }
+
+  .sync-button {
     height: 46px;
   }
 

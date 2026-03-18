@@ -1,6 +1,8 @@
-import { Link, createFileRoute } from "@tanstack/react-router";
+import * as React from "react";
+import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { getDashboardData } from "~/lib/yfinance";
+import { getDashboardData, syncInstrument } from "~/lib/yfinance";
 
 const intervalOptions = [
   { value: "1d", label: "1日足" },
@@ -28,8 +30,16 @@ export const Route = createFileRoute("/")({
 });
 
 function HomePage() {
+  const router = useRouter();
+  const runSyncInstrument = useServerFn(syncInstrument);
   const search = Route.useSearch();
   const data = Route.useLoaderData();
+  const [syncSymbolInput, setSyncSymbolInput] = React.useState(search.symbol ?? search.q ?? "");
+  const [syncFeedback, setSyncFeedback] = React.useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+  const [isSyncPending, startSyncTransition] = React.useTransition();
   const selected = data.selectedInstrument;
   const latest = selected?.latestQuote;
   const latestPrice = latest?.regularMarketPrice ?? null;
@@ -37,6 +47,59 @@ function HomePage() {
   const diff = latestPrice !== null && previousClose !== null ? latestPrice - previousClose : null;
   const diffRatio =
     diff !== null && previousClose && previousClose !== 0 ? (diff / previousClose) * 100 : null;
+
+  React.useEffect(() => {
+    if (search.symbol || search.q) {
+      setSyncSymbolInput(search.symbol ?? search.q ?? "");
+    }
+  }, [search.q, search.symbol]);
+
+  function handleSyncSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const symbol = syncSymbolInput.trim().toUpperCase();
+    if (!symbol) {
+      setSyncFeedback({
+        type: "error",
+        message: "同期する symbol を入力してください。",
+      });
+      return;
+    }
+
+    startSyncTransition(async () => {
+      setSyncFeedback(null);
+
+      try {
+        const result = await runSyncInstrument({
+          data: {
+            symbol,
+          },
+        });
+
+        await router.navigate({
+          to: "/",
+          search: (prev) => ({
+            ...prev,
+            q: result.symbol,
+            symbol: result.symbol,
+            interval: prev.interval ?? "1d",
+          }),
+          replace: true,
+        });
+        await router.invalidate();
+
+        setSyncSymbolInput(result.symbol);
+        setSyncFeedback({
+          type: "success",
+          message: `${result.symbol} のデータを取得して保存しました。`,
+        });
+      } catch (error) {
+        setSyncFeedback({
+          type: "error",
+          message: error instanceof Error ? error.message : "同期に失敗しました。",
+        });
+      }
+    });
+  }
 
   return (
     <main className="app-shell">
@@ -49,6 +112,26 @@ function HomePage() {
               同期済みの Yahoo Finance データから銘柄一覧、最新スナップショット、価格推移、
               コーポレートアクションを横断して確認できます。
             </p>
+            <form className="sync-form" onSubmit={handleSyncSubmit}>
+              <label className="search-label" htmlFor="sync-symbol">
+                Yahoo Finance から取得して保存
+              </label>
+              <div className="sync-row">
+                <input
+                  id="sync-symbol"
+                  className="search-input sync-input"
+                  value={syncSymbolInput}
+                  onChange={(event) => setSyncSymbolInput(event.target.value.toUpperCase())}
+                  placeholder="AAPL, MSFT, NVDA..."
+                />
+                <button className="sync-button" type="submit" disabled={isSyncPending}>
+                  {isSyncPending ? "Syncing..." : "Fetch & Save"}
+                </button>
+              </div>
+              {syncFeedback ? (
+                <p className={`sync-feedback is-${syncFeedback.type}`}>{syncFeedback.message}</p>
+              ) : null}
+            </form>
           </div>
           <div className="hero-meta">
             <MetricCard label="API Endpoint" value={data.apiBaseUrl.replace(/^https?:\/\//, "")} />
@@ -123,7 +206,7 @@ function HomePage() {
             ) : (
               <div className="empty-state">
                 <p>一致する銘柄がありません。</p>
-                <p>`app/yfinance` で同期済み銘柄を追加してから再度確認してください。</p>
+                <p>上のフォームから symbol を同期すると、保存済みデータをここで閲覧できます。</p>
               </div>
             )}
           </div>
@@ -231,10 +314,7 @@ function HomePage() {
             <div className="empty-detail">
               <p className="panel-kicker">No Selection</p>
               <h2>表示できる銘柄がありません</h2>
-              <p>
-                `app/yfinance` の同期 API
-                で銘柄データを保存すると、この画面に一覧と詳細が表示されます。
-              </p>
+              <p>上部フォームから symbol を取得すると、この画面に一覧と詳細が表示されます。</p>
             </div>
           )}
         </section>

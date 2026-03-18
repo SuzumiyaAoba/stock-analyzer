@@ -7,6 +7,14 @@ const dashboardSearchSchema = z.object({
   interval: z.enum(["1d", "1wk", "1mo"]).default("1d"),
 });
 
+const syncSymbolSchema = z.object({
+  symbol: z
+    .string()
+    .trim()
+    .transform((value) => value.toUpperCase())
+    .pipe(z.string().min(1, "symbol は必須です")),
+});
+
 type DashboardSearch = z.infer<typeof dashboardSearchSchema>;
 
 type InstrumentListItem = {
@@ -104,6 +112,75 @@ async function fetchJson<T>(path: string): Promise<T> {
 
   return response.json() as Promise<T>;
 }
+
+async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  headers.set("Accept", "application/json");
+
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    ...init,
+    headers,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(`yfinance request failed: ${response.status} ${message.slice(0, 200)}`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+export const syncInstrument = createServerFn({
+  method: "POST",
+})
+  .inputValidator((input: unknown) => syncSymbolSchema.parse(input))
+  .handler(async ({ data }) => {
+    const input = syncSymbolSchema.parse(data);
+    const requestOptions = {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    } satisfies RequestInit;
+
+    await Promise.all([
+      requestJson("/api/v1/sync/history", {
+        ...requestOptions,
+        body: JSON.stringify({
+          symbol: input.symbol,
+          interval: "1d",
+          range: "6mo",
+        }),
+      }),
+      requestJson("/api/v1/sync/history", {
+        ...requestOptions,
+        body: JSON.stringify({
+          symbol: input.symbol,
+          interval: "1wk",
+          range: "2y",
+        }),
+      }),
+      requestJson("/api/v1/sync/history", {
+        ...requestOptions,
+        body: JSON.stringify({
+          symbol: input.symbol,
+          interval: "1mo",
+          range: "5y",
+        }),
+      }),
+      requestJson("/api/v1/sync/quote", {
+        ...requestOptions,
+        body: JSON.stringify({
+          symbol: input.symbol,
+        }),
+      }),
+    ]);
+
+    return {
+      symbol: input.symbol,
+    };
+  });
 
 export const getDashboardData = createServerFn({
   method: "GET",
