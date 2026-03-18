@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { InstrumentDetailPanel, InstrumentsPanel, OperationsPanel } from "~/components/dashboard";
-import { dashboardSearchSchema, type DashboardSearch } from "~/lib/dashboard-config";
+import { dashboardSearchSchema } from "~/lib/dashboard-config";
 import { useDashboardActions } from "~/lib/use-dashboard-actions";
+import { useDashboardSearch } from "~/lib/use-dashboard-search";
 import { getDashboardData } from "~/lib/yfinance";
 
 export const Route = createFileRoute("/")({
@@ -15,32 +16,7 @@ function HomePage() {
   const search = Route.useSearch();
   const data = Route.useLoaderData();
   const actions = useDashboardActions(search);
-
-  function mergeSearch(partial: Partial<DashboardSearch>): DashboardSearch {
-    return {
-      ...search,
-      ...partial,
-    };
-  }
-
-  function instrumentSearchFor(symbol: string): DashboardSearch {
-    return mergeSearch({
-      symbol,
-    });
-  }
-
-  function intervalSearchFor(interval: DashboardSearch["interval"]): DashboardSearch {
-    return mergeSearch({
-      symbol: data.selectedSymbol || undefined,
-      interval,
-    });
-  }
-
-  function pageSearchFor(offset: number): DashboardSearch {
-    return mergeSearch({
-      offset,
-    });
-  }
+  const searchBuilder = useDashboardSearch(search, data.selectedSymbol);
 
   return (
     <main className="app-shell">
@@ -77,14 +53,14 @@ function HomePage() {
           hasNextPage={data.hasNextPage}
           selectedSymbol={data.selectedSymbol}
           errorMessage={data.errorMessage}
-          instrumentSearchFor={instrumentSearchFor}
-          pageSearchFor={pageSearchFor}
+          instrumentSearchFor={searchBuilder.instrumentSearchFor}
+          pageSearchFor={searchBuilder.pageSearchFor}
         />
         <InstrumentDetailPanel
           data={data}
           search={search}
-          intervalSearchFor={intervalSearchFor}
-          clearDetailFiltersSearchFor={mergeSearch}
+          intervalSearchFor={searchBuilder.intervalSearchFor}
+          clearDetailFiltersSearchFor={searchBuilder.mergeSearch}
         />
       </section>
     </main>
