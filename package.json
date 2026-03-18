@@ -6,11 +6,15 @@
   "license": "MIT",
   "packageManager": "npm@10.9.4",
   "scripts": {
+    "dev:portless": "portless proxy start && npm exec -- concurrently --kill-others-on-fail --names api,web --prefix-colors blue,magenta \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm --prefix app/yfinance run dev:portless",
+    "dev:web": "npm --prefix app/web run dev:portless",
     "prepare": "npm exec -- lefthook install",
     "hooks:install": "npm exec -- lefthook install",
     "hooks:pre-commit": "npm exec -- lefthook run pre-commit"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "lefthook": "1.13.0"
   }
 }

@@ -5,6 +5,7 @@
   "scripts": {
     "check": "npm exec -- vp check && tsc --noEmit -p tsconfig.json",
     "dev": "bun --watch src/server.ts",
+    "dev:portless": "portless api.stock-analyzer bun --watch src/server.ts",
     "fmt": "npm exec -- vp fmt",
     "lint": "npm exec -- vp lint",
     "start": "bun src/server.ts",
