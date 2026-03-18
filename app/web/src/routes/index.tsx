@@ -1,8 +1,7 @@
-import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { HeroPanel, InstrumentDetailPanel, InstrumentsPanel } from "~/components/dashboard";
+import { InstrumentDetailPanel, InstrumentsPanel, OperationsPanel } from "~/components/dashboard";
 import { dashboardSearchSchema, type DashboardSearch } from "~/lib/dashboard-config";
-import { useSyncInstrumentForm } from "~/lib/use-sync-instrument";
+import { useDashboardActions } from "~/lib/use-dashboard-actions";
 import { getDashboardData } from "~/lib/yfinance";
 
 export const Route = createFileRoute("/")({
@@ -15,43 +14,78 @@ export const Route = createFileRoute("/")({
 function HomePage() {
   const search = Route.useSearch();
   const data = Route.useLoaderData();
-  const syncForm = useSyncInstrumentForm(search);
+  const actions = useDashboardActions(search);
 
-  function instrumentSearchFor(symbol: string): DashboardSearch {
+  function mergeSearch(partial: Partial<DashboardSearch>): DashboardSearch {
     return {
-      q: search.q,
-      interval: search.interval,
-      symbol,
+      ...search,
+      ...partial,
     };
   }
 
+  function instrumentSearchFor(symbol: string): DashboardSearch {
+    return mergeSearch({
+      symbol,
+    });
+  }
+
   function intervalSearchFor(interval: DashboardSearch["interval"]): DashboardSearch {
-    return {
-      q: search.q,
+    return mergeSearch({
       symbol: data.selectedSymbol || undefined,
       interval,
-    };
+    });
+  }
+
+  function pageSearchFor(offset: number): DashboardSearch {
+    return mergeSearch({
+      offset,
+    });
   }
 
   return (
     <main className="app-shell">
-      <HeroPanel
-        syncSymbolInput={syncForm.syncSymbolInput}
-        syncFeedback={syncForm.syncFeedback}
-        isSyncPending={syncForm.isSyncPending}
-        onSyncInputChange={syncForm.updateSyncSymbolInput}
-        onSyncSubmit={syncForm.handleSyncSubmit}
+      <OperationsPanel
+        data={data}
+        syncSymbolInput={actions.syncSymbolInput}
+        syncFeedback={actions.syncFeedback}
+        isSyncPending={actions.isSyncPending}
+        onSyncInputChange={actions.updateSyncSymbolInput}
+        onSyncSubmit={actions.handleSyncSubmit}
+        batchSymbolsInput={actions.batchSymbolsInput}
+        batchInterval={actions.batchInterval}
+        batchRange={actions.batchRange}
+        batchIncludePrePost={actions.batchIncludePrePost}
+        batchSkipQuote={actions.batchSkipQuote}
+        batchFeedback={actions.batchFeedback}
+        isBatchPending={actions.isBatchPending}
+        onBatchSymbolsInputChange={actions.updateBatchSymbolsInput}
+        onBatchIntervalChange={actions.setBatchInterval}
+        onBatchRangeChange={actions.setBatchRange}
+        onBatchIncludePrePostChange={actions.setBatchIncludePrePost}
+        onBatchSkipQuoteChange={actions.setBatchSkipQuote}
+        onBatchSubmit={actions.handleBatchSubmit}
+        jobFeedback={actions.jobFeedback}
+        isJobPending={actions.isJobPending}
+        onRunSyncJob={actions.handleRunSyncJob}
       />
 
       <section className="dashboard-grid">
         <InstrumentsPanel
           search={search}
           instruments={data.instruments}
+          hasPreviousPage={data.hasPreviousPage}
+          hasNextPage={data.hasNextPage}
           selectedSymbol={data.selectedSymbol}
           errorMessage={data.errorMessage}
           instrumentSearchFor={instrumentSearchFor}
+          pageSearchFor={pageSearchFor}
         />
-        <InstrumentDetailPanel data={data} search={search} intervalSearchFor={intervalSearchFor} />
+        <InstrumentDetailPanel
+          data={data}
+          search={search}
+          intervalSearchFor={intervalSearchFor}
+          clearDetailFiltersSearchFor={mergeSearch}
+        />
       </section>
     </main>
   );

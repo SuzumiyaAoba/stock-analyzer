@@ -1,5 +1,11 @@
 import * as React from "react";
-import type { CandlestickData, IChartApi, Time, UTCTimestamp } from "lightweight-charts";
+import type {
+  CandlestickData,
+  IChartApi,
+  ISeriesApi,
+  Time,
+  UTCTimestamp,
+} from "lightweight-charts";
 import { formatPrice } from "~/lib/dashboard-formatters";
 import type { PriceBar } from "~/lib/yfinance";
 
@@ -44,24 +50,27 @@ export function CandlestickChart({
   currency?: string | null;
 }>) {
   const chartContainerRef = React.useRef<HTMLDivElement | null>(null);
-  const seriesData = React.useMemo(() => toCandlestickData(prices), [prices]);
+  const chartRef = React.useRef<IChartApi | null>(null);
+  const seriesRef = React.useRef<ISeriesApi<"Candlestick", Time> | null>(null);
+  const deferredPrices = React.useDeferredValue(prices);
+  const seriesData = React.useMemo(() => toCandlestickData(deferredPrices), [deferredPrices]);
   const priceFormatter = React.useMemo(
     () => (value: number) => formatPrice(value, currency),
     [currency],
   );
+  const canRenderChart = seriesData.length >= 2;
 
   React.useEffect(() => {
-    if (!chartContainerRef.current || seriesData.length < 2) {
+    if (!chartContainerRef.current || !canRenderChart) {
       return;
     }
 
     const container = chartContainerRef.current;
-    let chart: IChartApi | null = null;
     let resizeObserver: ResizeObserver | null = null;
     let disposed = false;
 
     void import("lightweight-charts").then(({ CandlestickSeries, ColorType, createChart }) => {
-      if (disposed || !chartContainerRef.current) {
+      if (disposed || !chartContainerRef.current || chartRef.current) {
         return;
       }
 
@@ -102,11 +111,11 @@ export function CandlestickChart({
           },
         },
         localization: {
-          locale: currency === "JPY" ? "ja-JP" : "en-US",
+          locale: "en-US",
         },
       });
 
-      chart = createdChart;
+      chartRef.current = createdChart;
 
       const candlestickSeries = createdChart.addSeries(CandlestickSeries, {
         upColor: "#15803d",
@@ -116,13 +125,12 @@ export function CandlestickChart({
         borderVisible: false,
         priceFormat: {
           type: "custom",
-          minMove: currency === "JPY" ? 1 : 0.01,
-          formatter: priceFormatter,
+          minMove: 0.01,
+          formatter: (value: number) => formatPrice(value),
         },
       });
 
-      candlestickSeries.setData(seriesData);
-      createdChart.timeScale().fitContent();
+      seriesRef.current = candlestickSeries;
 
       resizeObserver = new ResizeObserver((entries) => {
         const width = entries[0]?.contentRect.width ?? container.clientWidth;
@@ -141,17 +149,45 @@ export function CandlestickChart({
     return () => {
       disposed = true;
       resizeObserver?.disconnect();
-      chart?.remove();
+      seriesRef.current = null;
+      chartRef.current?.remove();
+      chartRef.current = null;
     };
-  }, [currency, priceFormatter, seriesData]);
+  }, [canRenderChart]);
 
-  if (seriesData.length < 2) {
+  React.useEffect(() => {
+    if (!canRenderChart || !chartRef.current || !seriesRef.current) {
+      return;
+    }
+
+    chartRef.current.applyOptions({
+      localization: {
+        locale: currency === "JPY" ? "ja-JP" : "en-US",
+      },
+    });
+    seriesRef.current.applyOptions({
+      priceFormat: {
+        type: "custom",
+        minMove: currency === "JPY" ? 1 : 0.01,
+        formatter: priceFormatter,
+      },
+    });
+    seriesRef.current.setData(seriesData);
+    chartRef.current.timeScale().fitContent();
+  }, [canRenderChart, currency, priceFormatter, seriesData]);
+
+  if (!canRenderChart) {
     return <div className="empty-inline">ローソク足を表示する価格データが不足しています。</div>;
   }
 
   return (
     <div className="chart-wrap">
-      <div ref={chartContainerRef} className="candlestick-chart" aria-label="candlestick chart" />
+      <div
+        ref={chartContainerRef}
+        className="candlestick-chart"
+        role="img"
+        aria-label="株価のローソク足チャート"
+      />
       <p className="chart-attribution">
         TradingView Lightweight Charts™ Copyright (c) 2025 TradingView, Inc.
         <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer">

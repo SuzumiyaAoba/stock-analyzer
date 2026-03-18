@@ -1,5 +1,15 @@
 import type { DashboardInterval } from "./dashboard-config";
 
+const compactNumberFormatter = new Intl.NumberFormat("ja-JP", {
+  notation: "compact",
+  maximumFractionDigits: 2,
+});
+
+function toValidDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function normalizeCurrency(currency: string | null | undefined) {
   if (!currency) {
     return "USD";
@@ -49,10 +59,7 @@ export function formatCompactNumber(value: number | null | undefined) {
     return "-";
   }
 
-  return new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 2,
-  }).format(value);
+  return compactNumberFormatter.format(value);
 }
 
 export function formatDate(value: string | null | undefined) {
@@ -60,9 +67,14 @@ export function formatDate(value: string | null | undefined) {
     return "-";
   }
 
+  const date = toValidDate(value);
+  if (!date) {
+    return "-";
+  }
+
   return new Intl.DateTimeFormat("ja-JP", {
     dateStyle: "medium",
-  }).format(new Date(value));
+  }).format(date);
 }
 
 export function formatDateTime(value: string | null | undefined) {
@@ -70,10 +82,15 @@ export function formatDateTime(value: string | null | undefined) {
     return "-";
   }
 
+  const date = toValidDate(value);
+  if (!date) {
+    return "-";
+  }
+
   return new Intl.DateTimeFormat("ja-JP", {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date(value));
+  }).format(date);
 }
 
 export function formatDiff(diff: number | null, ratio: number | null, currency?: string | null) {
@@ -128,14 +145,14 @@ export function formatActionValue(
 
 export function actionLabel(type: "dividend" | "split" | "capitalGain") {
   if (type === "dividend") {
-    return "Dividend";
+    return "配当";
   }
 
   if (type === "split") {
-    return "Split";
+    return "株式分割";
   }
 
-  return "Capital Gain";
+  return "キャピタルゲイン";
 }
 
 export function derivePriceChange(

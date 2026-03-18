@@ -1,7 +1,21 @@
 import type { FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { CandlestickChart } from "~/components/candlestick-chart";
-import { intervalOptions, labelForInterval, type DashboardSearch } from "~/lib/dashboard-config";
+import {
+  actionLimitOptions,
+  actionTypeOptions,
+  instrumentSortOptions,
+  intervalOptions,
+  labelForInterval,
+  listLimitOptions,
+  orderOptions,
+  priceLimitOptions,
+  syncHistoryIntervalOptions,
+  syncHistoryRangeOptions,
+  type SyncHistoryInterval,
+  type SyncHistoryRange,
+  type DashboardSearch,
+} from "~/lib/dashboard-config";
 import {
   actionLabel,
   derivePriceChange,
@@ -13,46 +27,261 @@ import {
   formatPercentChange,
   formatPrice,
 } from "~/lib/dashboard-formatters";
-import type { DashboardData, InstrumentListItem } from "~/lib/yfinance";
+import type {
+  DashboardData,
+  InstrumentListItem,
+  SymbolSyncResult,
+  SyncJobRun,
+} from "~/lib/yfinance";
 
-type SyncFeedback = {
+type Feedback = {
   type: "success" | "error";
   message: string;
 } | null;
 
-export function HeroPanel({
+type SearchFactory = (search: Partial<DashboardSearch>) => DashboardSearch;
+
+export function OperationsPanel({
+  data,
   syncSymbolInput,
   syncFeedback,
   isSyncPending,
   onSyncInputChange,
   onSyncSubmit,
+  batchSymbolsInput,
+  batchInterval,
+  batchRange,
+  batchIncludePrePost,
+  batchSkipQuote,
+  batchFeedback,
+  isBatchPending,
+  onBatchSymbolsInputChange,
+  onBatchIntervalChange,
+  onBatchRangeChange,
+  onBatchIncludePrePostChange,
+  onBatchSkipQuoteChange,
+  onBatchSubmit,
+  jobFeedback,
+  isJobPending,
+  onRunSyncJob,
 }: Readonly<{
+  data: DashboardData;
   syncSymbolInput: string;
-  syncFeedback: SyncFeedback;
+  syncFeedback: Feedback;
   isSyncPending: boolean;
   onSyncInputChange: (value: string) => void;
   onSyncSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  batchSymbolsInput: string;
+  batchInterval: SyncHistoryInterval;
+  batchRange: SyncHistoryRange;
+  batchIncludePrePost: boolean;
+  batchSkipQuote: boolean;
+  batchFeedback: Feedback;
+  isBatchPending: boolean;
+  onBatchSymbolsInputChange: (value: string) => void;
+  onBatchIntervalChange: (value: SyncHistoryInterval) => void;
+  onBatchRangeChange: (value: SyncHistoryRange) => void;
+  onBatchIncludePrePostChange: (checked: boolean) => void;
+  onBatchSkipQuoteChange: (checked: boolean) => void;
+  onBatchSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  jobFeedback: Feedback;
+  isJobPending: boolean;
+  onRunSyncJob: () => void;
 }>) {
+  const syncJob = data.syncJob;
+  const canRunSyncJob = Boolean(syncJob && syncJob.symbols.length > 0);
+
   return (
     <section className="hero-panel">
-      <form className="sync-form" onSubmit={onSyncSubmit}>
-        <div className="sync-row">
-          <input
-            id="sync-symbol"
-            aria-label="銘柄コード"
-            className="search-input sync-input"
-            value={syncSymbolInput}
-            onChange={(event) => onSyncInputChange(event.target.value)}
-            placeholder="AAPL, MSFT, NVDA"
-          />
-          <button className="sync-button" type="submit" disabled={isSyncPending}>
-            {isSyncPending ? "取得中..." : "検索"}
+      <div className="hero-grid">
+        <article className="hero-card">
+          <div className="panel-header">
+            <div>
+              <p className="panel-kicker">Quick Sync</p>
+              <h2>単体同期</h2>
+            </div>
+          </div>
+          <p className="hero-description">
+            `sync/history` と `sync/quote` をまとめて呼び出し、日足・週足・月足を保存します。
+          </p>
+          <form className="stack-form" onSubmit={onSyncSubmit}>
+            <div className="sync-row">
+              <input
+                id="sync-symbol"
+                aria-label="銘柄コード"
+                className="search-input sync-input"
+                value={syncSymbolInput}
+                onChange={(event) => onSyncInputChange(event.target.value)}
+                placeholder="AAPL, MSFT, NVDA"
+              />
+              <button className="sync-button" type="submit" disabled={isSyncPending}>
+                {isSyncPending ? "取得中..." : "単体同期"}
+              </button>
+            </div>
+            <FeedbackMessage feedback={syncFeedback} />
+          </form>
+        </article>
+
+        <article className="hero-card">
+          <div className="panel-header">
+            <div>
+              <p className="panel-kicker">Batch Sync</p>
+              <h2>一括同期</h2>
+            </div>
+          </div>
+          <p className="hero-description">
+            `sync/batch`
+            を使って複数銘柄をまとめて取得します。改行またはカンマ区切りで入力できます。
+          </p>
+          <form className="stack-form" onSubmit={onBatchSubmit}>
+            <label className="field" htmlFor="batch-symbols">
+              <span>銘柄コード</span>
+              <textarea
+                id="batch-symbols"
+                className="search-input batch-textarea"
+                value={batchSymbolsInput}
+                onChange={(event) => onBatchSymbolsInputChange(event.target.value)}
+                placeholder={"AAPL\nMSFT\nNVDA"}
+                rows={4}
+              />
+            </label>
+            <div className="form-grid">
+              <label className="field" htmlFor="batch-interval">
+                <span>足種別</span>
+                <select
+                  id="batch-interval"
+                  className="search-input"
+                  value={batchInterval}
+                  onChange={(event) =>
+                    onBatchIntervalChange(event.target.value as SyncHistoryInterval)
+                  }
+                >
+                  {syncHistoryIntervalOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field" htmlFor="batch-range">
+                <span>取得期間</span>
+                <select
+                  id="batch-range"
+                  className="search-input"
+                  value={batchRange}
+                  onChange={(event) => onBatchRangeChange(event.target.value as SyncHistoryRange)}
+                >
+                  {syncHistoryRangeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="checkbox-row">
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={batchIncludePrePost}
+                  onChange={(event) => onBatchIncludePrePostChange(event.target.checked)}
+                />
+                <span>時間外取引を含める</span>
+              </label>
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={batchSkipQuote}
+                  onChange={(event) => onBatchSkipQuoteChange(event.target.checked)}
+                />
+                <span>quote 同期を省略</span>
+              </label>
+            </div>
+            <button className="sync-button" type="submit" disabled={isBatchPending}>
+              {isBatchPending ? "同期中..." : "一括同期"}
+            </button>
+            <FeedbackMessage feedback={batchFeedback} />
+          </form>
+        </article>
+
+        <article className="hero-card">
+          <div className="panel-header">
+            <div>
+              <p className="panel-kicker">Scheduler</p>
+              <h2>API / 定期同期</h2>
+            </div>
+            <span className={`status-pill${data.apiHealth.ok ? " is-success" : " is-error"}`}>
+              {data.apiHealth.ok ? "API Online" : "API Error"}
+            </span>
+          </div>
+          <dl className="info-list">
+            <InfoRow label="API URL" value={data.apiBaseUrl} />
+            <InfoRow
+              label="ジョブ有効"
+              value={syncJob ? formatBoolean(syncJob.enabled) : "取得できません"}
+            />
+            <InfoRow
+              label="実行中"
+              value={syncJob ? formatBoolean(syncJob.isRunning) : "取得できません"}
+            />
+            <InfoRow label="対象銘柄" value={syncJob?.symbols.join(", ") || "-"} />
+            <InfoRow label="実行間隔" value={formatIntervalMs(syncJob?.intervalMs ?? 0)} />
+            <InfoRow
+              label="履歴設定"
+              value={
+                syncJob ? `${syncJob.historyInterval} / ${syncJob.historyRange}` : "取得できません"
+              }
+            />
+            <InfoRow
+              label="直近開始"
+              value={syncJob ? formatDateTime(syncJob.lastRunStartedAt) : "取得できません"}
+            />
+            <InfoRow
+              label="直近完了"
+              value={syncJob ? formatDateTime(syncJob.lastRunFinishedAt) : "取得できません"}
+            />
+          </dl>
+          {data.apiHealth.errorMessage ? (
+            <div className="error-banner compact">{data.apiHealth.errorMessage}</div>
+          ) : null}
+          {syncJob?.lastRunError ? (
+            <div className="error-banner compact">{syncJob.lastRunError}</div>
+          ) : null}
+          <button
+            className="search-button full-width"
+            type="button"
+            onClick={onRunSyncJob}
+            disabled={!canRunSyncJob || isJobPending}
+          >
+            {isJobPending ? "実行中..." : "定期同期ジョブを即時実行"}
           </button>
-        </div>
-        {syncFeedback ? (
-          <p className={`sync-feedback is-${syncFeedback.type}`}>{syncFeedback.message}</p>
-        ) : null}
-      </form>
+          {!canRunSyncJob ? (
+            <FeedbackMessage
+              feedback={{
+                type: "error",
+                message:
+                  "`SYNC_SYMBOLS` が未設定、またはジョブ状態を取得できないため、実行できません。",
+              }}
+            />
+          ) : null}
+          <FeedbackMessage feedback={jobFeedback} />
+
+          {syncJob?.lastRunResults.length ? (
+            <div className="result-stack">
+              <p className="section-label">直近ジョブ結果</p>
+              <ul className="mini-result-list">
+                {syncJob.lastRunResults.map((result) => (
+                  <SyncResultSummary
+                    key={`${result.symbol}-${result.interval}`}
+                    result={result}
+                    className="mini-result-item"
+                  />
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </article>
+      </div>
     </section>
   );
 }
@@ -60,16 +289,25 @@ export function HeroPanel({
 export function InstrumentsPanel({
   search,
   instruments,
+  hasPreviousPage,
+  hasNextPage,
   selectedSymbol,
   errorMessage,
   instrumentSearchFor,
+  pageSearchFor,
 }: Readonly<{
   search: DashboardSearch;
   instruments: InstrumentListItem[];
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
   selectedSymbol: string | null;
   errorMessage: string | null;
   instrumentSearchFor: (symbol: string) => DashboardSearch;
+  pageSearchFor: (offset: number) => DashboardSearch;
 }>) {
+  const pageStart = instruments.length > 0 ? search.offset + 1 : 0;
+  const pageEnd = search.offset + instruments.length;
+
   return (
     <aside className="list-panel">
       <div className="panel-header">
@@ -80,8 +318,13 @@ export function InstrumentsPanel({
         <span className="panel-badge">{instruments.length} symbols</span>
       </div>
 
-      <form className="search-form" action="/" method="get">
-        <input type="hidden" name="interval" value={search.interval} />
+      <form
+        key={buildFormStateKey(search.q, search.symbol, search.interval)}
+        className="search-form"
+        action="/"
+        method="get"
+      >
+        <DashboardHiddenFields search={search} omit={["q", "symbol", "offset"]} />
         <label className="search-label" htmlFor="symbol-query">
           銘柄名またはシンボル
         </label>
@@ -99,6 +342,69 @@ export function InstrumentsPanel({
         </div>
       </form>
 
+      <form
+        key={buildFormStateKey(search.sortBy, search.order, search.listLimit)}
+        className="list-controls-form"
+        action="/"
+        method="get"
+      >
+        <DashboardHiddenFields search={search} omit={["sortBy", "order", "listLimit", "offset"]} />
+        <div className="filter-grid compact">
+          <label className="field">
+            <span>並び順</span>
+            <select className="search-input" name="sortBy" defaultValue={search.sortBy}>
+              {instrumentSortOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>順序</span>
+            <select className="search-input" name="order" defaultValue={search.order}>
+              {orderOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>件数</span>
+            <select
+              className="search-input"
+              name="listLimit"
+              defaultValue={String(search.listLimit)}
+            >
+              {listLimitOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <button className="search-button full-width" type="submit">
+          一覧条件を反映
+        </button>
+      </form>
+
+      <div className="list-summary">
+        <span>{pageStart > 0 ? `${pageStart}-${pageEnd}` : "0"} 件を表示中</span>
+        <div className="pagination-row">
+          <PagerLink
+            enabled={hasPreviousPage}
+            search={pageSearchFor(Math.max(search.offset - search.listLimit, 0))}
+          >
+            前へ
+          </PagerLink>
+          <PagerLink enabled={hasNextPage} search={pageSearchFor(search.offset + search.listLimit)}>
+            次へ
+          </PagerLink>
+        </div>
+      </div>
+
       <div className="instrument-list">
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
         {instruments.length > 0 ? (
@@ -110,6 +416,7 @@ export function InstrumentsPanel({
                 to="/"
                 search={instrumentSearchFor(item.symbol)}
                 className={`instrument-card${isActive ? " is-active" : ""}`}
+                aria-current={isActive ? "page" : undefined}
               >
                 <div className="instrument-card-top">
                   <div>
@@ -124,13 +431,17 @@ export function InstrumentsPanel({
                   <span>{item.exchange || "-"}</span>
                   <span>{formatPercentChange(item.latestQuote)}</span>
                 </div>
+                <div className="instrument-card-meta">
+                  <span>{item.currency || "-"}</span>
+                  <span>{formatDateTime(item.latestQuote?.asOf ?? item.updatedAt)}</span>
+                </div>
               </Link>
             );
           })
         ) : (
           <div className="empty-state">
             <p>一致する銘柄がありません。</p>
-            <p>上のフォームから symbol を同期すると、保存済みデータをここで閲覧できます。</p>
+            <p>上部フォームから symbol を同期すると、保存済みデータをここで閲覧できます。</p>
           </div>
         )}
       </div>
@@ -142,10 +453,12 @@ export function InstrumentDetailPanel({
   data,
   search,
   intervalSearchFor,
+  clearDetailFiltersSearchFor,
 }: Readonly<{
   data: DashboardData;
   search: DashboardSearch;
   intervalSearchFor: (interval: DashboardSearch["interval"]) => DashboardSearch;
+  clearDetailFiltersSearchFor: SearchFactory;
 }>) {
   const selected = data.selectedInstrument;
   if (!selected) {
@@ -181,6 +494,7 @@ export function InstrumentDetailPanel({
               to="/"
               search={intervalSearchFor(option.value)}
               className={`interval-chip${search.interval === option.value ? " is-active" : ""}`}
+              aria-current={search.interval === option.value ? "page" : undefined}
             >
               {option.label}
             </Link>
@@ -188,26 +502,123 @@ export function InstrumentDetailPanel({
         </div>
       </div>
 
+      <form
+        key={buildFormStateKey(
+          selected.symbol,
+          search.from,
+          search.to,
+          search.priceLimit,
+          search.actionType,
+          search.actionLimit,
+        )}
+        className="detail-filter-form"
+        action="/"
+        method="get"
+      >
+        <input type="hidden" name="symbol" value={selected.symbol} />
+        <DashboardHiddenFields
+          search={search}
+          omit={["symbol", "from", "to", "priceLimit", "actionType", "actionLimit", "offset"]}
+        />
+        <div className="filter-grid">
+          <label className="field">
+            <span>開始日</span>
+            <input
+              className="search-input"
+              type="date"
+              name="from"
+              defaultValue={search.from ?? ""}
+            />
+          </label>
+          <label className="field">
+            <span>終了日</span>
+            <input className="search-input" type="date" name="to" defaultValue={search.to ?? ""} />
+          </label>
+          <label className="field">
+            <span>価格本数</span>
+            <select
+              className="search-input"
+              name="priceLimit"
+              defaultValue={String(search.priceLimit)}
+            >
+              {priceLimitOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>アクション種別</span>
+            <select className="search-input" name="actionType" defaultValue={search.actionType}>
+              {actionTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>アクション件数</span>
+            <select
+              className="search-input"
+              name="actionLimit"
+              defaultValue={String(search.actionLimit)}
+            >
+              {actionLimitOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="form-actions">
+          <button className="search-button" type="submit">
+            期間・表示条件を反映
+          </button>
+          <Link
+            to="/"
+            search={clearDetailFiltersSearchFor({
+              from: undefined,
+              to: undefined,
+              priceLimit: 60,
+              actionType: "all",
+              actionLimit: 12,
+              offset: 0,
+            })}
+            className="secondary-button"
+          >
+            フィルタを解除
+          </Link>
+        </div>
+      </form>
+
       <div className="headline-metrics">
         <div className="price-block">
-          <p className="price-label">Latest Quote</p>
+          <p className="price-label">最新価格</p>
           <p className="price-value">{formatPrice(latestPrice, currency)}</p>
-          <p className={`price-diff${diff !== null && diff < 0 ? " is-negative" : " is-positive"}`}>
+          <p
+            className={`price-diff${
+              diff === null ? "" : diff < 0 ? " is-negative" : " is-positive"
+            }`}
+          >
             {formatDiff(diff, diffRatio, currency)}
           </p>
         </div>
-        <MetricCard label="Market Cap" value={formatCompactNumber(latest?.marketCap)} />
-        <MetricCard label="Volume" value={formatCompactNumber(latest?.regularMarketVolume)} />
-        <MetricCard label="As Of" value={formatDateTime(latest?.asOf)} />
+        <MetricCard label="時価総額" value={formatCompactNumber(latest?.marketCap)} />
+        <MetricCard label="出来高" value={formatCompactNumber(latest?.regularMarketVolume)} />
+        <MetricCard label="取得時点" value={formatDateTime(latest?.asOf)} />
+        <MetricCard label="DB 更新" value={formatDateTime(selected.updatedAt)} />
       </div>
 
       <div className="chart-card">
         <div className="chart-header">
           <div>
             <p className="panel-kicker">Price Action</p>
-            <h3>{labelForInterval(search.interval)}の終値推移</h3>
+            <h3>{labelForInterval(search.interval)}の価格推移</h3>
           </div>
-          <p className="chart-caption">{data.prices.length} points</p>
+          <p className="chart-caption">{data.prices.length} 本</p>
         </div>
         <CandlestickChart prices={data.prices} currency={currency} />
       </div>
@@ -223,7 +634,9 @@ export function InstrumentDetailPanel({
             <Stat label="当日高値" value={formatPrice(latest?.dayHigh, currency)} />
             <Stat label="当日安値" value={formatPrice(latest?.dayLow, currency)} />
             <Stat label="通貨" value={selected.currency || "-"} />
+            <Stat label="市場" value={selected.exchange || "-"} />
             <Stat label="種別" value={selected.quoteType || "-"} />
+            <Stat label="タイムゾーン" value={selected.timezone || "-"} />
             <Stat label="初回取引日" value={formatDate(selected.firstTradeAt)} />
           </dl>
         </section>
@@ -246,11 +659,158 @@ export function InstrumentDetailPanel({
               ))}
             </ul>
           ) : (
-            <div className="empty-inline">コーポレートアクションはありません。</div>
+            <div className="empty-inline">条件に一致するコーポレートアクションはありません。</div>
           )}
         </section>
       </div>
+
+      <section className="subpanel sync-runs-panel">
+        <div className="subpanel-header">
+          <p className="panel-kicker">Sync Runs</p>
+          <h3>定期同期の実行履歴</h3>
+        </div>
+        {data.syncRuns.length > 0 ? (
+          <ul className="run-list">
+            {data.syncRuns.map((run) => (
+              <SyncRunItem key={run.id} run={run} />
+            ))}
+          </ul>
+        ) : (
+          <div className="empty-inline">実行履歴はまだありません。</div>
+        )}
+      </section>
     </section>
+  );
+}
+
+function SyncRunItem({ run }: Readonly<{ run: SyncJobRun }>) {
+  return (
+    <li className="run-item">
+      <div className="run-item-header">
+        <div className="run-title-row">
+          <strong>#{run.id}</strong>
+          <span className={`status-pill${statusPillClass(run.status)}`}>
+            {statusLabel(run.status)}
+          </span>
+          <span className="run-source">{run.source}</span>
+        </div>
+        <span className="chart-caption">{run.symbolCount} 銘柄</span>
+      </div>
+      <div className="run-meta-grid">
+        <InfoBlock label="開始" value={formatDateTime(run.startedAt)} />
+        <InfoBlock label="終了" value={formatDateTime(run.finishedAt)} />
+        <InfoBlock label="エラー" value={run.errorMessage || "-"} />
+      </div>
+      {run.results.length > 0 ? (
+        <ul className="run-result-list">
+          {run.results.map((result) => (
+            <SyncResultSummary
+              key={`${run.id}-${result.symbol}-${result.interval}`}
+              result={result}
+              className="run-result-item"
+            />
+          ))}
+        </ul>
+      ) : null}
+    </li>
+  );
+}
+
+function SyncResultSummary({
+  result,
+  className,
+}: Readonly<{
+  result: SymbolSyncResult;
+  className: string;
+}>) {
+  return (
+    <li className={className}>
+      <strong>{result.symbol}</strong>
+      <span>{result.interval}</span>
+      <span>{result.barsInserted} 本</span>
+      <span>{result.actionsInserted} 件</span>
+      <span>{result.quoteSynced ? "quote 同期済み" : "quote 省略"}</span>
+    </li>
+  );
+}
+
+function PagerLink({
+  enabled,
+  search,
+  children,
+}: Readonly<{
+  enabled: boolean;
+  search: DashboardSearch;
+  children: string;
+}>) {
+  if (!enabled) {
+    return <span className="pager-button is-disabled">{children}</span>;
+  }
+
+  return (
+    <Link to="/" search={search} className="pager-button">
+      {children}
+    </Link>
+  );
+}
+
+function FeedbackMessage({ feedback }: Readonly<{ feedback: Feedback }>) {
+  if (!feedback) {
+    return null;
+  }
+
+  return (
+    <p
+      className={`sync-feedback is-${feedback.type}`}
+      role={feedback.type === "error" ? "alert" : "status"}
+      aria-live={feedback.type === "error" ? "assertive" : "polite"}
+    >
+      {feedback.message}
+    </p>
+  );
+}
+
+function DashboardHiddenFields({
+  search,
+  omit = [],
+}: Readonly<{
+  search: DashboardSearch;
+  omit?: Array<keyof DashboardSearch>;
+}>) {
+  const omitted = new Set(omit);
+
+  return (
+    <>
+      {!omitted.has("q") && search.q ? <input type="hidden" name="q" value={search.q} /> : null}
+      {!omitted.has("symbol") && search.symbol ? (
+        <input type="hidden" name="symbol" value={search.symbol} />
+      ) : null}
+      {!omitted.has("interval") ? (
+        <input type="hidden" name="interval" value={search.interval} />
+      ) : null}
+      {!omitted.has("sortBy") ? <input type="hidden" name="sortBy" value={search.sortBy} /> : null}
+      {!omitted.has("order") ? <input type="hidden" name="order" value={search.order} /> : null}
+      {!omitted.has("listLimit") ? (
+        <input type="hidden" name="listLimit" value={search.listLimit} />
+      ) : null}
+      {!omitted.has("offset") ? <input type="hidden" name="offset" value={search.offset} /> : null}
+      {!omitted.has("priceLimit") ? (
+        <input type="hidden" name="priceLimit" value={search.priceLimit} />
+      ) : null}
+      {!omitted.has("actionType") ? (
+        <input type="hidden" name="actionType" value={search.actionType} />
+      ) : null}
+      {!omitted.has("actionLimit") ? (
+        <input type="hidden" name="actionLimit" value={search.actionLimit} />
+      ) : null}
+      {!omitted.has("runsLimit") ? (
+        <input type="hidden" name="runsLimit" value={search.runsLimit} />
+      ) : null}
+      {!omitted.has("from") && search.from ? (
+        <input type="hidden" name="from" value={search.from} />
+      ) : null}
+      {!omitted.has("to") && search.to ? <input type="hidden" name="to" value={search.to} /> : null}
+    </>
   );
 }
 
@@ -270,4 +830,74 @@ function Stat({ label, value }: Readonly<{ label: string; value: string }>) {
       <dd>{value}</dd>
     </div>
   );
+}
+
+function InfoRow({ label, value }: Readonly<{ label: string; value: string }>) {
+  return (
+    <>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </>
+  );
+}
+
+function InfoBlock({ label, value }: Readonly<{ label: string; value: string }>) {
+  return (
+    <div className="info-block">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function formatBoolean(value: boolean) {
+  return value ? "はい" : "いいえ";
+}
+
+function formatIntervalMs(value: number) {
+  if (!value) {
+    return "無効";
+  }
+
+  if (value % (60 * 60 * 1000) === 0) {
+    return `${value / (60 * 60 * 1000)}時間`;
+  }
+
+  if (value % (60 * 1000) === 0) {
+    return `${value / (60 * 1000)}分`;
+  }
+
+  return `${Math.round(value / 1000)}秒`;
+}
+
+function buildFormStateKey(...values: Array<string | number | undefined>) {
+  return values.map((value) => String(value ?? "")).join(":");
+}
+
+function statusLabel(status: string) {
+  if (status === "success") {
+    return "成功";
+  }
+
+  if (status === "error") {
+    return "失敗";
+  }
+
+  if (status === "running") {
+    return "実行中";
+  }
+
+  return status;
+}
+
+function statusPillClass(status: string) {
+  if (status === "success") {
+    return " is-success";
+  }
+
+  if (status === "error") {
+    return " is-error";
+  }
+
+  return " is-muted";
 }
