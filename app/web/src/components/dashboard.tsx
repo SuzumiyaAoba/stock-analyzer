@@ -21,18 +21,12 @@ type SyncFeedback = {
 } | null;
 
 export function HeroPanel({
-  apiBaseUrl,
-  instrumentCount,
-  interval,
   syncSymbolInput,
   syncFeedback,
   isSyncPending,
   onSyncInputChange,
   onSyncSubmit,
 }: Readonly<{
-  apiBaseUrl: string;
-  instrumentCount: number;
-  interval: DashboardSearch["interval"];
   syncSymbolInput: string;
   syncFeedback: SyncFeedback;
   isSyncPending: boolean;
@@ -41,41 +35,24 @@ export function HeroPanel({
 }>) {
   return (
     <section className="hero-panel">
-      <p className="eyebrow">Market Data Dashboard</p>
-      <div className="hero-heading">
-        <div>
-          <h1>銘柄探索と価格確認を、ひとつの画面で。</h1>
-          <p className="hero-copy">
-            同期済みの Yahoo Finance データから銘柄一覧、最新スナップショット、価格推移、
-            コーポレートアクションを横断して確認できます。
-          </p>
-          <form className="sync-form" onSubmit={onSyncSubmit}>
-            <label className="search-label" htmlFor="sync-symbol">
-              Yahoo Finance から取得して保存
-            </label>
-            <div className="sync-row">
-              <input
-                id="sync-symbol"
-                className="search-input sync-input"
-                value={syncSymbolInput}
-                onChange={(event) => onSyncInputChange(event.target.value)}
-                placeholder="AAPL, MSFT, NVDA"
-              />
-              <button className="sync-button" type="submit" disabled={isSyncPending}>
-                {isSyncPending ? "取得中..." : "取得して保存"}
-              </button>
-            </div>
-            {syncFeedback ? (
-              <p className={`sync-feedback is-${syncFeedback.type}`}>{syncFeedback.message}</p>
-            ) : null}
-          </form>
+      <form className="sync-form" onSubmit={onSyncSubmit}>
+        <div className="sync-row">
+          <input
+            id="sync-symbol"
+            aria-label="銘柄コード"
+            className="search-input sync-input"
+            value={syncSymbolInput}
+            onChange={(event) => onSyncInputChange(event.target.value)}
+            placeholder="AAPL, MSFT, NVDA"
+          />
+          <button className="sync-button" type="submit" disabled={isSyncPending}>
+            {isSyncPending ? "取得中..." : "検索"}
+          </button>
         </div>
-        <div className="hero-meta">
-          <MetricCard label="API Endpoint" value={apiBaseUrl.replace(/^https?:\/\//, "")} />
-          <MetricCard label="表示銘柄数" value={`${instrumentCount}`} />
-          <MetricCard label="選択中足種別" value={labelForInterval(interval)} />
-        </div>
-      </div>
+        {syncFeedback ? (
+          <p className={`sync-feedback is-${syncFeedback.type}`}>{syncFeedback.message}</p>
+        ) : null}
+      </form>
     </section>
   );
 }
