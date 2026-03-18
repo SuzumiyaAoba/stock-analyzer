@@ -2,8 +2,13 @@ import { describe, expect, it } from "bun:test";
 import { createApp } from "./server";
 
 function createDependencies() {
+  const calls = {
+    getInstruments: [] as unknown[],
+  };
+
   const db = {
-    getInstruments() {
+    getInstruments(input: unknown) {
+      calls.getInstruments.push(input);
       return [{ symbol: "AAPL", latestQuote: null }];
     },
     getPrices() {
@@ -91,7 +96,7 @@ function createDependencies() {
     },
   };
 
-  return { db, yahoo, syncJob };
+  return { calls, db, yahoo, syncJob };
 }
 
 describe("server", () => {
@@ -126,9 +131,12 @@ describe("server", () => {
   });
 
   it("GET /api/v1/instruments は一覧を返す", async () => {
-    const app = createApp(createDependencies() as any);
+    const deps = createDependencies();
+    const app = createApp(deps as any);
     const response = await app.fetch(
-      new Request("http://localhost/api/v1/instruments?q=app&limit=10&offset=0"),
+      new Request(
+        "http://localhost/api/v1/instruments?q=%20app%20&limit=10&offset=0&sortBy=updatedAt&order=desc",
+      ),
     );
 
     expect(response.status).toBe(200);
@@ -136,6 +144,15 @@ describe("server", () => {
       count: 1,
       items: [{ symbol: "AAPL", latestQuote: null }],
     });
+    expect(deps.calls.getInstruments).toEqual([
+      {
+        q: "app",
+        limit: 10,
+        offset: 0,
+        sortBy: "updatedAt",
+        order: "desc",
+      },
+    ]);
   });
 
   it("GET /api/v1/instruments は不正 limit を拒否する", async () => {
@@ -145,6 +162,16 @@ describe("server", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
       error: "limit は 1 以上 200 以下の整数で指定してください",
+    });
+  });
+
+  it("GET /api/v1/instruments は不正 offset を拒否する", async () => {
+    const app = createApp(createDependencies() as any);
+    const response = await app.fetch(new Request("http://localhost/api/v1/instruments?offset=-1"));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "offset は 0 以上の整数で指定してください",
     });
   });
 
