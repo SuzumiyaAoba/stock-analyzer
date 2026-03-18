@@ -36,9 +36,6 @@ function HomePage() {
   return (
     <main className="app-shell">
       <HeroPanel
-        apiBaseUrl={data.apiBaseUrl}
-        instrumentCount={data.instruments.length}
-        interval={search.interval}
         syncSymbolInput={syncForm.syncSymbolInput}
         syncFeedback={syncForm.syncFeedback}
         isSyncPending={syncForm.isSyncPending}
