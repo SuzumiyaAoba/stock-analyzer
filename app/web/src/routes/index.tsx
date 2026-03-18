@@ -109,7 +109,9 @@ function HomePage() {
                         <p className="instrument-symbol">{item.symbol}</p>
                         <p className="instrument-name">{item.shortName || item.longName || "-"}</p>
                       </div>
-                      <p className="instrument-price">{formatPrice(item.latestQuote?.regularMarketPrice)}</p>
+                      <p className="instrument-price">
+                        {formatPrice(item.latestQuote?.regularMarketPrice)}
+                      </p>
                     </div>
                     <div className="instrument-card-bottom">
                       <span>{item.exchange || "-"}</span>
@@ -161,12 +163,17 @@ function HomePage() {
                 <div className="price-block">
                   <p className="price-label">Latest Quote</p>
                   <p className="price-value">{formatPrice(latestPrice)}</p>
-                  <p className={`price-diff${diff !== null && diff < 0 ? " is-negative" : " is-positive"}`}>
+                  <p
+                    className={`price-diff${diff !== null && diff < 0 ? " is-negative" : " is-positive"}`}
+                  >
                     {formatDiff(diff, diffRatio)}
                   </p>
                 </div>
                 <MetricCard label="Market Cap" value={formatCompactNumber(latest?.marketCap)} />
-                <MetricCard label="Volume" value={formatCompactNumber(latest?.regularMarketVolume)} />
+                <MetricCard
+                  label="Volume"
+                  value={formatCompactNumber(latest?.regularMarketVolume)}
+                />
                 <MetricCard label="As Of" value={formatDateTime(latest?.asOf)} />
               </div>
 
@@ -225,7 +232,8 @@ function HomePage() {
               <p className="panel-kicker">No Selection</p>
               <h2>表示できる銘柄がありません</h2>
               <p>
-                `app/yfinance` の同期 API で銘柄データを保存すると、この画面に一覧と詳細が表示されます。
+                `app/yfinance` の同期 API
+                で銘柄データを保存すると、この画面に一覧と詳細が表示されます。
               </p>
             </div>
           )}
@@ -235,7 +243,9 @@ function HomePage() {
   );
 }
 
-function PriceSparkline({ prices }: Readonly<{ prices: Array<{ timestampUtc: string; close: number | null }> }>) {
+function PriceSparkline({
+  prices,
+}: Readonly<{ prices: Array<{ timestampUtc: string; close: number | null }> }>) {
   const points = prices
     .map((price) => price.close)
     .filter((value): value is number => value !== null && Number.isFinite(value));
@@ -259,18 +269,19 @@ function PriceSparkline({ prices }: Readonly<{ prices: Array<{ timestampUtc: str
 
   return (
     <div className="sparkline-wrap">
-      <svg className="sparkline" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="price chart">
+      <svg
+        className="sparkline"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        aria-label="price chart"
+      >
         <defs>
           <linearGradient id="priceArea" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="rgba(233, 145, 56, 0.45)" />
             <stop offset="100%" stopColor="rgba(233, 145, 56, 0.02)" />
           </linearGradient>
         </defs>
-        <polyline
-          points={`0,100 ${polyline} 100,100`}
-          fill="url(#priceArea)"
-          stroke="none"
-        />
+        <polyline points={`0,100 ${polyline} 100,100`} fill="url(#priceArea)" stroke="none" />
         <polyline
           points={polyline}
           fill="none"
@@ -369,7 +380,12 @@ function formatPercentChange(
     | null
     | undefined,
 ) {
-  if (!quote || quote.regularMarketPrice === null || quote.previousClose === null || quote.previousClose === 0) {
+  if (
+    !quote ||
+    quote.regularMarketPrice === null ||
+    quote.previousClose === null ||
+    quote.previousClose === 0
+  ) {
     return "-";
   }
 

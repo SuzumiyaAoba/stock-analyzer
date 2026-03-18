@@ -123,7 +123,9 @@ export const getDashboardData = createServerFn({
 
     let instrumentsResponse: InstrumentsResponse;
     try {
-      instrumentsResponse = await fetchJson<InstrumentsResponse>(`/api/v1/instruments?${query.toString()}`);
+      instrumentsResponse = await fetchJson<InstrumentsResponse>(
+        `/api/v1/instruments?${query.toString()}`,
+      );
     } catch (error) {
       return {
         search,
@@ -142,7 +144,8 @@ export const getDashboardData = createServerFn({
 
     const selectedSymbol =
       search.symbol ||
-      instrumentsResponse.items.find((item) => item.symbol.includes(search.q.toUpperCase()))?.symbol ||
+      instrumentsResponse.items.find((item) => item.symbol.includes(search.q.toUpperCase()))
+        ?.symbol ||
       instrumentsResponse.items[0]?.symbol ||
       null;
 
@@ -160,9 +163,9 @@ export const getDashboardData = createServerFn({
     }
 
     const [selectedInstrument, pricesResponse, actionsResponse] = await Promise.all([
-      fetchJson<InstrumentDetail>(`/api/v1/instruments/${encodeURIComponent(selectedSymbol)}`).catch(
-        () => null,
-      ),
+      fetchJson<InstrumentDetail>(
+        `/api/v1/instruments/${encodeURIComponent(selectedSymbol)}`,
+      ).catch(() => null),
       fetchJson<PricesResponse>(
         `/api/v1/prices?symbol=${encodeURIComponent(selectedSymbol)}&interval=${search.interval}&limit=60`,
       ).catch(() => ({ symbol: selectedSymbol, interval: search.interval, count: 0, prices: [] })),

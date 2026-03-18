@@ -3,11 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
-    "build": "vite build && tsc --noEmit",
-    "preview": "vite preview",
+    "precheck": "node -e \"import('node:fs').then((fs) => fs.rmSync('.output', { recursive: true, force: true }))\"",
+    "dev": "npm exec -- vp dev",
+    "build": "npm exec -- vp build && tsc --noEmit",
+    "preview": "npm exec -- vp preview",
     "start": "node .output/server/index.mjs",
-    "check": "tsc --noEmit"
+    "check": "npm exec -- vp check && tsc --noEmit",
+    "fmt": "npm exec -- vp fmt",
+    "lint": "npm exec -- vp lint"
   },
   "dependencies": {
     "@tanstack/react-router": "^1.167.4",
@@ -17,13 +20,21 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.1.18",
     "@types/node": "^24.5.2",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^6.0.1",
     "nitro": "^3.0.260311-beta",
+    "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3",
-    "vite": "^8.0.0"
+    "vite": "npm:@voidzero-dev/vite-plus-core@0.1.11",
+    "vite-plus": "0.1.11",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@0.1.11"
+  },
+  "overrides": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@0.1.11",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@0.1.11"
   },
   "packageManager": "npm@10.9.4"
 }
