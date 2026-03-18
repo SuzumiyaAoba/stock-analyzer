@@ -6,7 +6,7 @@
   "license": "MIT",
   "packageManager": "npm@10.9.4",
   "scripts": {
-    "dev:portless": "portless proxy start && npm exec -- concurrently --kill-others-on-fail --names api,web --prefix-colors blue,magenta \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:portless": "node scripts/dev-portless.mjs",
     "dev:api": "npm --prefix app/yfinance run dev:portless",
     "dev:web": "npm --prefix app/web run dev:portless",
     "prepare": "npm exec -- lefthook install",
