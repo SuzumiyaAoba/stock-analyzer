@@ -139,7 +139,7 @@ export function InstrumentsPanel({
                     <p className="instrument-name">{item.shortName || item.longName || "-"}</p>
                   </div>
                   <p className="instrument-price">
-                    {formatPrice(item.latestQuote?.regularMarketPrice)}
+                    {formatPrice(item.latestQuote?.regularMarketPrice, item.currency)}
                   </p>
                 </div>
                 <div className="instrument-card-bottom">
@@ -183,6 +183,7 @@ export function InstrumentDetailPanel({
   }
 
   const latest = selected.latestQuote;
+  const currency = selected.currency;
   const { latestPrice, diff, diffRatio } = derivePriceChange(latest);
 
   return (
@@ -212,9 +213,9 @@ export function InstrumentDetailPanel({
       <div className="headline-metrics">
         <div className="price-block">
           <p className="price-label">Latest Quote</p>
-          <p className="price-value">{formatPrice(latestPrice)}</p>
+          <p className="price-value">{formatPrice(latestPrice, currency)}</p>
           <p className={`price-diff${diff !== null && diff < 0 ? " is-negative" : " is-positive"}`}>
-            {formatDiff(diff, diffRatio)}
+            {formatDiff(diff, diffRatio, currency)}
           </p>
         </div>
         <MetricCard label="Market Cap" value={formatCompactNumber(latest?.marketCap)} />
@@ -230,7 +231,7 @@ export function InstrumentDetailPanel({
           </div>
           <p className="chart-caption">{data.prices.length} points</p>
         </div>
-        <PriceSparkline prices={data.prices} />
+        <PriceSparkline prices={data.prices} currency={currency} />
       </div>
 
       <div className="detail-grid">
@@ -240,9 +241,9 @@ export function InstrumentDetailPanel({
             <h3>主要指標</h3>
           </div>
           <dl className="stats-grid">
-            <Stat label="前日終値" value={formatPrice(latest?.previousClose)} />
-            <Stat label="当日高値" value={formatPrice(latest?.dayHigh)} />
-            <Stat label="当日安値" value={formatPrice(latest?.dayLow)} />
+            <Stat label="前日終値" value={formatPrice(latest?.previousClose, currency)} />
+            <Stat label="当日高値" value={formatPrice(latest?.dayHigh, currency)} />
+            <Stat label="当日安値" value={formatPrice(latest?.dayLow, currency)} />
             <Stat label="通貨" value={selected.currency || "-"} />
             <Stat label="種別" value={selected.quoteType || "-"} />
             <Stat label="初回取引日" value={formatDate(selected.firstTradeAt)} />
@@ -262,7 +263,7 @@ export function InstrumentDetailPanel({
                     <p className="action-type">{actionLabel(action.actionType)}</p>
                     <p className="action-date">{formatDate(action.eventAt)}</p>
                   </div>
-                  <strong>{formatActionValue(action.value, action.actionType)}</strong>
+                  <strong>{formatActionValue(action.value, action.actionType, currency)}</strong>
                 </li>
               ))}
             </ul>
@@ -275,7 +276,13 @@ export function InstrumentDetailPanel({
   );
 }
 
-function PriceSparkline({ prices }: Readonly<{ prices: PriceBar[] }>) {
+function PriceSparkline({
+  prices,
+  currency,
+}: Readonly<{
+  prices: PriceBar[];
+  currency?: string | null;
+}>) {
   const points = prices
     .map((price) => price.close)
     .filter((value): value is number => value !== null && Number.isFinite(value));
@@ -323,8 +330,8 @@ function PriceSparkline({ prices }: Readonly<{ prices: PriceBar[] }>) {
         />
       </svg>
       <div className="sparkline-scale">
-        <span>{formatPrice(max)}</span>
-        <span>{formatPrice(min)}</span>
+        <span>{formatPrice(max, currency)}</span>
+        <span>{formatPrice(min, currency)}</span>
       </div>
     </div>
   );
