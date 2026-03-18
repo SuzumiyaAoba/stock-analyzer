@@ -183,6 +183,28 @@ describe("YFinanceDatabase", () => {
         },
       },
     ]);
+
+    expect(
+      db.getInstruments({
+        sortBy: "latestQuoteAsOf",
+        order: "desc",
+        offset: 1,
+        limit: 1,
+      }),
+    ).toEqual([
+      {
+        symbol: "MSFT",
+        quoteType: "EQUITY",
+        exchange: "NMS",
+        currency: "USD",
+        timezone: "America/New_York",
+        shortName: "Microsoft",
+        longName: "Microsoft Corporation",
+        firstTradeAt: "1986-03-13T14:30:00.000Z",
+        updatedAt: expect.any(String),
+        latestQuote: null,
+      },
+    ]);
   });
 
   it("コーポレートアクションを条件付きで取得できる", () => {
