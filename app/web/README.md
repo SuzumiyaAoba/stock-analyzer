@@ -12,6 +12,16 @@ npm run dev
 
 デフォルトでは `http://localhost:3001` で起動します。
 
+`portless` を使う場合:
+
+```bash
+npm install -g portless
+portless proxy start
+npm run dev:portless
+```
+
+この場合の URL は `http://stock-analyzer.localhost:1355` です。
+
 ## 環境変数
 
 - `YFINANCE_API_BASE_URL`: `app/yfinance` の URL。デフォルトは `http://127.0.0.1:3000`

@@ -5,6 +5,7 @@
   "scripts": {
     "precheck": "node -e \"import('node:fs').then((fs) => fs.rmSync('.output', { recursive: true, force: true }))\"",
     "dev": "npm exec -- vp dev",
+    "dev:portless": "YFINANCE_API_BASE_URL=http://api.stock-analyzer.localhost:1355 portless stock-analyzer npm exec -- vp dev",
     "build": "npm exec -- vp build && tsc --noEmit",
     "preview": "npm exec -- vp preview",
     "start": "node .output/server/index.mjs",

@@ -9,6 +9,16 @@ npm install
 bun run dev
 ```
 
+`portless` を使う場合:
+
+```bash
+npm install -g portless
+portless proxy start
+npm run dev:portless
+```
+
+この場合の URL は `http://api.stock-analyzer.localhost:1355` です。
+
 ## テスト
 
 ```bash

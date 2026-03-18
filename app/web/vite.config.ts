@@ -12,7 +12,8 @@ export default defineConfig({
     ignorePatterns: [".output/**", "src/routeTree.gen.ts"],
   },
   server: {
-    port: 3001,
+    host: process.env.HOST || "127.0.0.1",
+    port: Number(process.env.PORT || "3001"),
   },
   resolve: {
     tsconfigPaths: true,
