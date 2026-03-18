@@ -7,6 +7,7 @@ import {
   formatZodError,
   historySyncRequestSchema,
   instrumentParamSchema,
+  instrumentsQuerySchema,
   pricesQuerySchema,
   quoteSyncRequestSchema,
   serverConfigSchema,
@@ -151,6 +152,20 @@ export function createApp({ db, yahoo, syncJob, logger = console }: AppDependenc
 
     return c.json(await syncJob.run("manual"));
   });
+
+  app.get(
+    "/api/v1/instruments",
+    zValidator("query", instrumentsQuerySchema, validationHook),
+    (c) => {
+      const query = c.req.valid("query");
+      const items = db.getInstruments(query);
+
+      return c.json({
+        count: items.length,
+        items,
+      });
+    },
+  );
 
   app.get(
     "/api/v1/instruments/:symbol",

@@ -87,6 +87,104 @@ describe("YFinanceDatabase", () => {
     ).toHaveLength(1);
   });
 
+  it("保存済み銘柄を一覧・検索でき、最新 quote を含めて返す", () => {
+    db.upsertInstrument({
+      symbol: "AAPL",
+      quoteType: "EQUITY",
+      exchange: "NMS",
+      currency: "USD",
+      timezone: "America/New_York",
+      shortName: "Apple",
+      longName: "Apple Inc.",
+      firstTradeAt: "1980-12-12T14:30:00.000Z",
+      rawJson: "{}",
+    });
+    db.upsertInstrument({
+      symbol: "MSFT",
+      quoteType: "EQUITY",
+      exchange: "NMS",
+      currency: "USD",
+      timezone: "America/New_York",
+      shortName: "Microsoft",
+      longName: "Microsoft Corporation",
+      firstTradeAt: "1986-03-13T14:30:00.000Z",
+      rawJson: "{}",
+    });
+
+    db.insertQuoteSnapshot({
+      symbol: "AAPL",
+      asOf: "2026-03-17T14:00:00.000Z",
+      regularMarketPrice: 210,
+      previousClose: 208,
+      dayHigh: 211,
+      dayLow: 207,
+      marketCap: 1,
+      regularMarketVolume: 100,
+      rawJson: "{}",
+    });
+    db.insertQuoteSnapshot({
+      symbol: "AAPL",
+      asOf: "2026-03-18T14:00:00.000Z",
+      regularMarketPrice: 215,
+      previousClose: 210,
+      dayHigh: 216,
+      dayLow: 209,
+      marketCap: 2,
+      regularMarketVolume: 200,
+      rawJson: "{}",
+    });
+
+    expect(
+      db.getInstruments({
+        q: "soft",
+        sortBy: "symbol",
+        order: "asc",
+      }),
+    ).toEqual([
+      {
+        symbol: "MSFT",
+        quoteType: "EQUITY",
+        exchange: "NMS",
+        currency: "USD",
+        timezone: "America/New_York",
+        shortName: "Microsoft",
+        longName: "Microsoft Corporation",
+        firstTradeAt: "1986-03-13T14:30:00.000Z",
+        updatedAt: expect.any(String),
+        latestQuote: null,
+      },
+    ]);
+
+    expect(
+      db.getInstruments({
+        sortBy: "latestQuoteAsOf",
+        order: "desc",
+        limit: 1,
+      }),
+    ).toEqual([
+      {
+        symbol: "AAPL",
+        quoteType: "EQUITY",
+        exchange: "NMS",
+        currency: "USD",
+        timezone: "America/New_York",
+        shortName: "Apple",
+        longName: "Apple Inc.",
+        firstTradeAt: "1980-12-12T14:30:00.000Z",
+        updatedAt: expect.any(String),
+        latestQuote: {
+          asOf: "2026-03-18T14:00:00.000Z",
+          regularMarketPrice: 215,
+          previousClose: 210,
+          dayHigh: 216,
+          dayLow: 209,
+          marketCap: 2,
+          regularMarketVolume: 200,
+        },
+      },
+    ]);
+  });
+
   it("コーポレートアクションを条件付きで取得できる", () => {
     db.upsertCorporateActions([
       {

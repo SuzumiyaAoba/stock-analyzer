@@ -284,6 +284,114 @@ export class YFinanceDatabase {
     };
   }
 
+  getInstruments(input: {
+    q?: string | null;
+    limit?: number;
+    offset?: number;
+    sortBy?: "symbol" | "updatedAt" | "latestQuoteAsOf";
+    order?: "asc" | "desc";
+  }): Record<string, unknown>[] {
+    const conditions: string[] = [];
+    const values: Array<string | number> = [];
+
+    if (input.q) {
+      const pattern = `%${input.q}%`;
+      conditions.push(
+        "(i.symbol LIKE ? COLLATE NOCASE OR i.short_name LIKE ? COLLATE NOCASE OR i.long_name LIKE ? COLLATE NOCASE)",
+      );
+      values.push(pattern, pattern, pattern);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+    const sortBy = input.sortBy ?? "symbol";
+    const order = input.order === "desc" ? "DESC" : "ASC";
+
+    const orderClauseMap: Record<"symbol" | "updatedAt" | "latestQuoteAsOf", string> = {
+      symbol: `i.symbol ${order}`,
+      updatedAt: `i.updated_at ${order}, i.symbol ASC`,
+      latestQuoteAsOf: `latest_quote_as_of IS NULL ASC, latest_quote_as_of ${order}, i.symbol ASC`,
+    };
+
+    values.push(Math.min(Math.max(input.limit ?? 50, 1), 200));
+    values.push(Math.max(input.offset ?? 0, 0));
+
+    return this.db
+      .query(`
+        WITH latest_quotes AS (
+          SELECT
+            qs.symbol,
+            qs.as_of AS latest_quote_as_of,
+            qs.regular_market_price,
+            qs.previous_close,
+            qs.day_high,
+            qs.day_low,
+            qs.market_cap,
+            qs.regular_market_volume
+          FROM quote_snapshots qs
+          INNER JOIN (
+            SELECT symbol, MAX(as_of) AS as_of
+            FROM quote_snapshots
+            GROUP BY symbol
+          ) latest
+            ON latest.symbol = qs.symbol
+           AND latest.as_of = qs.as_of
+        )
+        SELECT
+          i.symbol,
+          i.quote_type AS quoteType,
+          i.exchange,
+          i.currency,
+          i.timezone,
+          i.short_name AS shortName,
+          i.long_name AS longName,
+          i.first_trade_at AS firstTradeAt,
+          i.updated_at AS updatedAt,
+          latest_quotes.latest_quote_as_of AS latestQuoteAsOf,
+          latest_quotes.regular_market_price AS latestQuoteRegularMarketPrice,
+          latest_quotes.previous_close AS latestQuotePreviousClose,
+          latest_quotes.day_high AS latestQuoteDayHigh,
+          latest_quotes.day_low AS latestQuoteDayLow,
+          latest_quotes.market_cap AS latestQuoteMarketCap,
+          latest_quotes.regular_market_volume AS latestQuoteRegularMarketVolume
+        FROM instruments i
+        LEFT JOIN latest_quotes
+          ON latest_quotes.symbol = i.symbol
+        ${whereClause}
+        ORDER BY ${orderClauseMap[sortBy]}
+        LIMIT ?
+        OFFSET ?
+      `)
+      .all(...values)
+      .map((row) => {
+        const record = row as Record<string, unknown>;
+        const latestQuote =
+          record.latestQuoteAsOf === null
+            ? null
+            : {
+                asOf: record.latestQuoteAsOf,
+                regularMarketPrice: record.latestQuoteRegularMarketPrice,
+                previousClose: record.latestQuotePreviousClose,
+                dayHigh: record.latestQuoteDayHigh,
+                dayLow: record.latestQuoteDayLow,
+                marketCap: record.latestQuoteMarketCap,
+                regularMarketVolume: record.latestQuoteRegularMarketVolume,
+              };
+
+        return {
+          symbol: record.symbol,
+          quoteType: record.quoteType,
+          exchange: record.exchange,
+          currency: record.currency,
+          timezone: record.timezone,
+          shortName: record.shortName,
+          longName: record.longName,
+          firstTradeAt: record.firstTradeAt,
+          updatedAt: record.updatedAt,
+          latestQuote,
+        };
+      });
+  }
+
   getPrices(input: {
     symbol: string;
     interval: string;

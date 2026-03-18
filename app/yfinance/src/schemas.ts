@@ -66,6 +66,29 @@ function createLimitSchema(defaultValue: number, max: number, fieldName = "limit
     });
 }
 
+function createNonNegativeIntegerSchema(defaultValue: number, fieldName: string) {
+  return z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      const normalized = normalizeOptionalString(value);
+      if (!normalized) {
+        return defaultValue;
+      }
+
+      const parsed = Number(normalized);
+      if (!Number.isInteger(parsed) || parsed < 0) {
+        ctx.addIssue({
+          code: "custom",
+          message: `${fieldName} は 0 以上の整数で指定してください`,
+        });
+        return z.NEVER;
+      }
+
+      return parsed;
+    });
+}
+
 function createBooleanEnvSchema(fieldName: string, defaultValue: boolean) {
   return z
     .string()
@@ -229,6 +252,45 @@ export const syncRunsQuerySchema = z.object({
 
 export const instrumentParamSchema = z.object({
   symbol: symbolSchema,
+});
+
+export const instrumentsQuerySchema = z.object({
+  q: z
+    .string()
+    .optional()
+    .transform((value) => normalizeOptionalString(value)),
+  limit: createLimitSchema(50, 200),
+  offset: createNonNegativeIntegerSchema(0, "offset"),
+  sortBy: z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      const normalized = normalizeOptionalString(value) ?? "symbol";
+      if (!["symbol", "updatedAt", "latestQuoteAsOf"].includes(normalized)) {
+        ctx.addIssue({
+          code: "custom",
+          message: `sortBy が不正です: ${normalized}`,
+        });
+        return z.NEVER;
+      }
+
+      return normalized as "symbol" | "updatedAt" | "latestQuoteAsOf";
+    }),
+  order: z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      const normalized = normalizeOptionalString(value) ?? "asc";
+      if (normalized !== "asc" && normalized !== "desc") {
+        ctx.addIssue({
+          code: "custom",
+          message: `order が不正です: ${normalized}`,
+        });
+        return z.NEVER;
+      }
+
+      return normalized;
+    }),
 });
 
 export const syncJobConfigSchema = z
