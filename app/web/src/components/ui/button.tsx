@@ -4,21 +4,21 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "~/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100 [&_svg]:pointer-events-none [&_svg]:size-4 shrink-0",
+  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-[color,opacity,transform] duration-200 ease-out disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[color:var(--accent)] hover:-translate-y-0.5 [&_svg]:pointer-events-none [&_svg]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-blue-600 text-white hover:bg-blue-700",
-        secondary: "border border-slate-200 bg-white text-slate-900 hover:bg-slate-50",
-        outline: "border border-slate-200 bg-transparent text-slate-900 hover:bg-slate-50",
-        ghost: "text-slate-900 hover:bg-slate-50",
-        destructive: "bg-red-600 text-white hover:bg-red-700",
+        default: "text-[color:var(--accent)] hover:text-[color:var(--accent-strong)]",
+        secondary: "text-[color:var(--page-foreground)] hover:text-[color:var(--accent)]",
+        outline: "text-[color:var(--muted-foreground)] hover:text-[color:var(--page-foreground)]",
+        ghost: "text-[color:var(--muted-foreground)] hover:text-[color:var(--page-foreground)]",
+        destructive: "text-[color:var(--danger)] hover:opacity-80",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-md px-3",
-        lg: "h-11 rounded-md px-8",
-        icon: "size-10",
+        default: "h-11 px-4 py-2",
+        sm: "h-9 px-3.5",
+        lg: "h-12 px-8 text-base",
+        icon: "size-11",
       },
     },
     defaultVariants: {

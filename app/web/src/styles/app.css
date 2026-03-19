@@ -1,4 +1,18 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap");
 @import "tailwindcss";
+
+:root {
+  --font-body: "IBM Plex Sans JP", sans-serif;
+  --font-display: "Space Grotesk", "IBM Plex Sans JP", sans-serif;
+  --page-background: #ece4d8;
+  --page-foreground: #17212c;
+  --surface-inset: rgba(225, 216, 204, 0.42);
+  --muted-foreground: #5f6a77;
+  --accent: #1f6c73;
+  --accent-strong: #164d53;
+  --success: #13795b;
+  --danger: #b45144;
+}
 
 * {
   box-sizing: border-box;
@@ -9,10 +23,18 @@ body {
   min-height: 100%;
 }
 
+html {
+  background: var(--page-background);
+  color: var(--page-foreground);
+}
+
 body {
   margin: 0;
-  font-family: "Segoe UI", "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+  background: #f7f1e6;
+  color: var(--page-foreground);
+  font-family: var(--font-body);
   line-height: 1.5;
+  text-rendering: optimizeLegibility;
 }
 
 a {
@@ -26,10 +48,11 @@ input,
 textarea,
 select {
   transition:
-    border-color 120ms ease,
     background-color 120ms ease,
-    box-shadow 120ms ease,
-    color 120ms ease;
+    color 120ms ease,
+    opacity 120ms ease,
+    transform 120ms ease,
+    outline-color 120ms ease;
 }
 
 button,
@@ -41,6 +64,69 @@ select {
 
 canvas {
   display: block;
+}
+
+.app-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.04em;
+}
+
+.dashboard-shell {
+  position: relative;
+}
+
+.glass-panel {
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.glass-panel-strong {
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.section-kicker {
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.ambient-orb {
+  display: none;
+}
+
+.dashboard-enter {
+  animation: rise-in 720ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.dashboard-enter[data-delay="1"] {
+  animation-delay: 120ms;
+}
+
+.dashboard-enter[data-delay="2"] {
+  animation-delay: 220ms;
+}
+
+.dashboard-enter[data-delay="3"] {
+  animation-delay: 320ms;
+}
+
+::selection {
+  background: rgba(23, 33, 44, 0.12);
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
