@@ -74,7 +74,7 @@ export function WorkspaceNav({
               variant={isActive ? "default" : "ghost"}
               className={cn("justify-start", isActive && "pointer-events-none")}
             >
-              <Link to="/" search={{ ...search, view: item.view }}>
+              <Link to="/" search={{ ...search, view: item.view }} resetScroll={false}>
                 <Icon data-icon="inline-start" />
                 {item.label}
               </Link>

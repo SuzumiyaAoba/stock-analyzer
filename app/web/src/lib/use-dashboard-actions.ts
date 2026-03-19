@@ -45,6 +45,7 @@ export function useDashboardActions(search: DashboardSearch) {
         offset: 0,
       },
       replace: true,
+      resetScroll: false,
     });
   });
 

@@ -375,6 +375,7 @@ export function AnalysisSidebarPanel({
         q: normalizeOptionalInputValue(query),
         offset: 0,
       },
+      resetScroll: false,
     });
   }
 
@@ -418,7 +419,7 @@ export function AnalysisSidebarPanel({
             <div className="flex flex-wrap gap-2">
               {japanMarketInstruments.slice(0, 4).map((item) => (
                 <Button key={item.symbol} asChild size="sm" variant="ghost">
-                  <Link to={detailTo} search={instrumentSearchFor(item.symbol)}>
+                  <Link to={detailTo} search={instrumentSearchFor(item.symbol)} resetScroll={false}>
                     {item.symbol}
                   </Link>
                 </Button>
@@ -443,6 +444,7 @@ export function AnalysisSidebarPanel({
                               <Link
                                 to={detailTo}
                                 search={instrumentSearchFor(item.symbol)}
+                                resetScroll={false}
                                 className="app-display text-base font-semibold"
                                 aria-current={isActive ? "page" : undefined}
                               >
@@ -557,6 +559,7 @@ export function InstrumentsPanel({
         symbol: undefined,
         offset: 0,
       },
+      resetScroll: false,
     });
   }
 
@@ -571,6 +574,7 @@ export function InstrumentsPanel({
         listLimit,
         offset: 0,
       },
+      resetScroll: false,
     });
   }
 
@@ -792,6 +796,7 @@ export function InstrumentsPanel({
                               <Link
                                 to={detailTo}
                                 search={instrumentSearchFor(item.symbol)}
+                                resetScroll={false}
                                 className="app-display text-base font-semibold"
                                 aria-current={isActive ? "page" : undefined}
                               >
@@ -812,7 +817,11 @@ export function InstrumentsPanel({
                           </TableCell>
                           <TableCell className="text-right">
                             <Button asChild size="sm" variant={isActive ? "secondary" : "ghost"}>
-                              <Link to={detailTo} search={instrumentSearchFor(item.symbol)}>
+                              <Link
+                                to={detailTo}
+                                search={instrumentSearchFor(item.symbol)}
+                                resetScroll={false}
+                              >
                                 {isActive ? "表示中" : "開く"}
                               </Link>
                             </Button>
@@ -892,6 +901,7 @@ export function InstrumentDetailPanel({
         actionLimit,
         offset: 0,
       },
+      resetScroll: false,
     });
   }
 
@@ -928,6 +938,7 @@ export function InstrumentDetailPanel({
                 <Link
                   to="/"
                   search={intervalSearchFor(option.value)}
+                  resetScroll={false}
                   aria-current={search.interval === option.value ? "page" : undefined}
                 >
                   {option.label}
@@ -1027,6 +1038,7 @@ export function InstrumentDetailPanel({
                         actionLimit: 12,
                         offset: 0,
                       })}
+                      resetScroll={false}
                     >
                       リセット
                     </Link>
@@ -1283,7 +1295,7 @@ function PagerLink({
 
   return (
     <Button asChild className="max-sm:flex-1" variant="outline">
-      <Link to={to} search={search}>
+      <Link to={to} search={search} resetScroll={false}>
         {children}
       </Link>
     </Button>
