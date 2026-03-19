@@ -166,6 +166,105 @@ describe("YahooFinanceClient", () => {
     await expect(client.syncQuote("AAPL")).rejects.toThrow(HttpError);
   });
 
+  it("screenByExchange は screener レスポンスを銘柄一覧へ変換する", async () => {
+    const responses = [
+      new Response("", {
+        headers: { "set-cookie": "A3=cookie-value; Path=/; HttpOnly" },
+      }),
+      new Response("crumb-value"),
+      jsonResponse({
+        finance: {
+          result: [
+            {
+              quotes: [
+                {
+                  symbol: "AAPL",
+                  quoteType: "EQUITY",
+                  exchange: "NMS",
+                  currency: "USD",
+                  shortName: "Apple",
+                  longName: "Apple Inc.",
+                  regularMarketPrice: 182.31,
+                  regularMarketChangePercent: 1.23,
+                  marketCap: 123456,
+                },
+              ],
+            },
+          ],
+          error: null,
+        },
+      }),
+    ];
+
+    fetchSpy.mockImplementation(mock(async () => responses.shift()!));
+
+    const client = new YahooFinanceClient();
+    const result = await client.screenByExchange({
+      exchange: "NMS",
+      region: "us",
+      quoteType: "EQUITY",
+      count: 10,
+      offset: 0,
+    });
+
+    expect(result).toEqual([
+      {
+        symbol: "AAPL",
+        quoteType: "EQUITY",
+        exchange: "NMS",
+        currency: "USD",
+        shortName: "Apple",
+        longName: "Apple Inc.",
+        regularMarketPrice: 182.31,
+        regularMarketChangePercent: 1.23,
+        marketCap: 123456,
+        rawJson: JSON.stringify({
+          symbol: "AAPL",
+          quoteType: "EQUITY",
+          exchange: "NMS",
+          currency: "USD",
+          shortName: "Apple",
+          longName: "Apple Inc.",
+          regularMarketPrice: 182.31,
+          regularMarketChangePercent: 1.23,
+          marketCap: 123456,
+        }),
+      },
+    ]);
+  });
+
+  it("screenByExchange は TSE を JPX に正規化して問い合わせる", async () => {
+    const responses = [
+      new Response("", {
+        headers: { "set-cookie": "A3=cookie-value; Path=/; HttpOnly" },
+      }),
+      new Response("crumb-value"),
+      jsonResponse({
+        finance: {
+          result: [{ quotes: [] }],
+          error: null,
+        },
+      }),
+    ];
+
+    fetchSpy.mockImplementation(mock(async () => responses.shift()!));
+
+    const client = new YahooFinanceClient();
+    await client.screenByExchange({
+      exchange: "TSE",
+      region: "jp",
+      quoteType: "EQUITY",
+      count: 10,
+      offset: 0,
+    });
+
+    const request = fetchSpy.mock.calls[2]?.[0];
+    expect(String(request)).toContain("/v1/finance/screener?");
+    const init = fetchSpy.mock.calls[2]?.[1] as RequestInit | undefined;
+    expect(typeof init?.body).toBe("string");
+    expect(init?.body).toContain('"exchange","JPX"');
+  });
+
   it("認証 cookie が取得できないときは HttpError を投げる", async () => {
     fetchSpy.mockImplementation(
       mock(async () => new Response("", { headers: { "content-type": "text/plain" } })),

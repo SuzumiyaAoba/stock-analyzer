@@ -97,3 +97,16 @@ export type QuoteSyncResult = {
   instrument: InstrumentRecord;
   snapshot: QuoteSnapshotRecord;
 };
+
+export type ScreenerInstrument = {
+  symbol: string;
+  quoteType: string | null;
+  exchange: string | null;
+  currency: string | null;
+  shortName: string | null;
+  longName: string | null;
+  regularMarketPrice: number | null;
+  regularMarketChangePercent: number | null;
+  marketCap: number | null;
+  rawJson: string;
+};

@@ -254,6 +254,20 @@ export const instrumentParamSchema = z.object({
   symbol: symbolSchema,
 });
 
+export const screenerQuerySchema = z.object({
+  exchange: symbolSchema,
+  region: z
+    .string()
+    .optional()
+    .transform((value) => normalizeOptionalString(value)?.toLowerCase() ?? "us"),
+  quoteType: z
+    .string()
+    .optional()
+    .transform((value) => normalizeOptionalString(value)?.toUpperCase() ?? "EQUITY"),
+  count: createLimitSchema(25, 250, "count"),
+  offset: createNonNegativeIntegerSchema(0, "offset"),
+});
+
 export const instrumentsQuerySchema = z.object({
   q: z
     .string()

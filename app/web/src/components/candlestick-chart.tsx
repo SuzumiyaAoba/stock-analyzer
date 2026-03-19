@@ -179,20 +179,27 @@ export function CandlestickChart({
   }, [canRenderChart, currency, priceFormatter, seriesData]);
 
   if (!canRenderChart) {
-    return <div className="empty-inline">ローソク足を表示する価格データが不足しています。</div>;
+    return (
+      <div className="text-sm text-slate-600">ローソク足を表示する価格データが不足しています。</div>
+    );
   }
 
   return (
-    <div className="chart-wrap">
+    <div className="mt-4">
       <div
         ref={chartContainerRef}
-        className="candlestick-chart"
+        className="h-[320px] w-full overflow-hidden rounded-xl border border-slate-200 bg-white max-sm:h-[260px]"
         role="img"
         aria-label="株価のローソク足チャート"
       />
-      <p className="chart-attribution">
+      <p className="mt-2 text-xs text-slate-600">
         TradingView Lightweight Charts™ Copyright (c) 2025 TradingView, Inc.
-        <a href="https://www.tradingview.com/" target="_blank" rel="noreferrer">
+        <a
+          className="ml-1 text-blue-600 hover:underline"
+          href="https://www.tradingview.com/"
+          target="_blank"
+          rel="noreferrer"
+        >
           TradingView
         </a>
       </p>

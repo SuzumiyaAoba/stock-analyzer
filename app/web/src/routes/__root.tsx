@@ -31,7 +31,7 @@ function RootDocument({ children }: Readonly<{ children: React.ReactNode }>) {
       <head>
         <HeadContent />
       </head>
-      <body>
+      <body className="bg-slate-100 text-slate-900">
         {children}
         <Scripts />
       </body>

@@ -4,6 +4,7 @@ import { createApp } from "./server";
 function createDependencies() {
   const calls = {
     getInstruments: [] as unknown[],
+    screenByExchange: [] as unknown[],
   };
 
   const db = {
@@ -72,6 +73,10 @@ function createDependencies() {
           rawJson: "{}",
         },
       };
+    },
+    async screenByExchange(input: unknown) {
+      calls.screenByExchange.push(input);
+      return [{ symbol: "AAPL", exchange: "NMS" }];
     },
   };
 
@@ -173,6 +178,31 @@ describe("server", () => {
     expect(await response.json()).toEqual({
       error: "offset は 0 以上の整数で指定してください",
     });
+  });
+
+  it("GET /api/v1/yahoo/screener は取引所コードで銘柄一覧を返す", async () => {
+    const deps = createDependencies();
+    const app = createApp(deps as any);
+    const response = await app.fetch(
+      new Request(
+        "http://localhost/api/v1/yahoo/screener?exchange=nms&region=us&quoteType=equity&count=5&offset=10",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      count: 1,
+      items: [{ symbol: "AAPL", exchange: "NMS" }],
+    });
+    expect(deps.calls.screenByExchange).toEqual([
+      {
+        exchange: "NMS",
+        region: "us",
+        quoteType: "EQUITY",
+        count: 5,
+        offset: 10,
+      },
+    ]);
   });
 
   it("POST /api/v1/sync/batch は結果を返す", async () => {

@@ -7,6 +7,7 @@ import type {
   PriceBarRecord,
   QuoteSnapshotRecord,
   QuoteSyncResult,
+  ScreenerInstrument,
 } from "./types";
 
 const USER_AGENT =
@@ -14,7 +15,11 @@ const USER_AGENT =
 
 const CHART_BASE_URL = "https://query2.finance.yahoo.com/v8/finance/chart";
 const QUOTE_SUMMARY_BASE_URL = "https://query2.finance.yahoo.com/v10/finance/quoteSummary";
+const SCREENER_BASE_URL = "https://query2.finance.yahoo.com/v1/finance/screener";
 const DEFAULT_QUOTE_MODULES = ["price", "summaryDetail", "quoteType"] as const;
+const SCREENER_EXCHANGE_ALIASES: Record<string, string> = {
+  TSE: "JPX",
+};
 
 type ChartMeta = Record<string, unknown>;
 
@@ -129,6 +134,48 @@ export class YahooFinanceClient {
     return { instrument, snapshot };
   }
 
+  async screenByExchange(input: {
+    exchange: string;
+    region?: string;
+    quoteType?: string;
+    count?: number;
+    offset?: number;
+  }): Promise<ScreenerInstrument[]> {
+    const exchange = normalizeScreenerExchange(input.exchange);
+    const payload = await this.postJson(SCREENER_BASE_URL, {
+      offset: input.offset ?? 0,
+      size: input.count ?? 25,
+      sortField: "ticker",
+      sortType: "ASC",
+      quoteType: input.quoteType ?? "EQUITY",
+      query: {
+        operator: "and",
+        operands: [
+          {
+            operator: "eq",
+            operands: ["region", input.region ?? "us"],
+          },
+          {
+            operator: "eq",
+            operands: ["exchange", exchange],
+          },
+        ],
+      },
+    });
+
+    const result = payload.finance?.result?.[0];
+    const quotes = Array.isArray(result?.quotes) ? result.quotes : null;
+    if (!quotes) {
+      const description = payload.finance?.error?.description;
+      throw new HttpError(
+        502,
+        description || "Yahoo Finance の screener 結果を取得できませんでした",
+      );
+    }
+
+    return quotes.flatMap((quote: unknown) => this.buildScreenerInstrument(quote));
+  }
+
   private async requestJson(url: string, params: URLSearchParams, retry = true): Promise<any> {
     await this.ensureAuth();
     params.set("crumb", this.crumb!);
@@ -165,6 +212,52 @@ export class YahooFinanceClient {
     if (!contentType.includes("json")) {
       const body = await response.text();
       throw new HttpError(502, `Yahoo Finance が JSON を返しませんでした: ${body.slice(0, 200)}`);
+    }
+
+    return response.json();
+  }
+
+  private async postJson(url: string, body: unknown, retry = true): Promise<any> {
+    await this.ensureAuth();
+
+    const response = await fetch(`${url}?crumb=${encodeURIComponent(this.crumb!)}`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json,text/plain,*/*",
+        "Content-Type": "application/json",
+        Cookie: this.cookieHeader!,
+        "User-Agent": USER_AGENT,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (
+      retry &&
+      (response.status === 401 ||
+        response.status === 403 ||
+        response.status === 429 ||
+        response.url.includes("consent.yahoo.com"))
+    ) {
+      this.cookieHeader = null;
+      this.crumb = null;
+      return this.postJson(url, body, false);
+    }
+
+    if (!response.ok) {
+      const payload = await response.text();
+      throw new HttpError(
+        response.status === 429 ? 429 : 502,
+        `Yahoo Finance request failed: ${response.status} ${payload.slice(0, 200)}`,
+      );
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("json")) {
+      const payload = await response.text();
+      throw new HttpError(
+        502,
+        `Yahoo Finance が JSON を返しませんでした: ${payload.slice(0, 200)}`,
+      );
     }
 
     return response.json();
@@ -288,6 +381,28 @@ export class YahooFinanceClient {
     return records;
   }
 
+  private buildScreenerInstrument(rawQuote: unknown): ScreenerInstrument[] {
+    const quote = unwrapYahooValue(rawQuote);
+    if (!isPlainObject(quote) || typeof quote.symbol !== "string" || quote.symbol.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        symbol: quote.symbol,
+        quoteType: stringOrNull(quote.quoteType),
+        exchange: stringOrNull(quote.exchange) ?? stringOrNull(quote.exchangeName),
+        currency: stringOrNull(quote.currency),
+        shortName: stringOrNull(quote.shortName),
+        longName: stringOrNull(quote.longName),
+        regularMarketPrice: asNumber(quote.regularMarketPrice),
+        regularMarketChangePercent: asNumber(quote.regularMarketChangePercent),
+        marketCap: asNumber(quote.marketCap),
+        rawJson: JSON.stringify(quote),
+      },
+    ];
+  }
+
   private extractActionMap(
     symbol: string,
     actionType: CorporateActionRecord["actionType"],
@@ -330,4 +445,9 @@ export class YahooFinanceClient {
 
 function stringOrNull(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function normalizeScreenerExchange(value: string) {
+  const normalized = value.trim().toUpperCase();
+  return SCREENER_EXCHANGE_ALIASES[normalized] ?? normalized;
 }

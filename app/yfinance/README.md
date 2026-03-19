@@ -101,6 +101,11 @@ npm run check
 
 保存済みの銘柄一覧を返します。`q` で `symbol` / `shortName` / `longName` を部分一致検索できます。
 
+### `GET /api/v1/yahoo/screener?exchange=NMS&region=us&quoteType=EQUITY&count=25&offset=0`
+
+Yahoo Finance の screener を使って、取引所コードで銘柄一覧を取得します。
+保存済み DB ではなく、Yahoo Finance の最新結果を返します。
+
 ### `GET /api/v1/instruments/AAPL`
 
 保存済みの銘柄情報と最新スナップショットを返します。
