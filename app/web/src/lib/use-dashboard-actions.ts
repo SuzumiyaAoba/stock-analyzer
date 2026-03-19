@@ -17,6 +17,7 @@ export function useDashboardActions(search: DashboardSearch) {
 
   const [syncSymbolInput, setSyncSymbolInput] = React.useState(search.symbol ?? search.q ?? "");
   const [syncFeedback, setSyncFeedback] = React.useState<ActionFeedback>(null);
+  const [syncingSymbol, setSyncingSymbol] = React.useState<string | null>(null);
   const [isSyncPending, startSyncTransition] = React.useTransition();
 
   const [batchSymbolsInput, setBatchSymbolsInput] = React.useState(search.symbol ?? "");
@@ -69,13 +70,10 @@ export function useDashboardActions(search: DashboardSearch) {
     setBatchSymbolsInput(value.toUpperCase());
   }
 
-  function handleSyncSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function submitSync(symbol: string) {
     if (isSyncPending) {
       return;
     }
-
-    const symbol = syncSymbolInput.trim().toUpperCase();
     if (!symbol) {
       setSyncFeedback({
         type: "error",
@@ -86,6 +84,7 @@ export function useDashboardActions(search: DashboardSearch) {
 
     startSyncTransition(async () => {
       setSyncFeedback(null);
+      setSyncingSymbol(symbol);
 
       try {
         const result = await runSyncInstrument({
@@ -107,8 +106,19 @@ export function useDashboardActions(search: DashboardSearch) {
           type: "error",
           message: error instanceof Error ? error.message : "同期に失敗しました。",
         });
+      } finally {
+        setSyncingSymbol(null);
       }
     });
+  }
+
+  function handleSyncSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    submitSync(syncSymbolInput.trim().toUpperCase());
+  }
+
+  function handleSyncSymbol(symbol: string) {
+    submitSync(symbol.trim().toUpperCase());
   }
 
   function handleBatchSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -192,9 +202,11 @@ export function useDashboardActions(search: DashboardSearch) {
   return {
     syncSymbolInput,
     syncFeedback,
+    syncingSymbol,
     isSyncPending,
     updateSyncSymbolInput,
     handleSyncSubmit,
+    handleSyncSymbol,
     batchSymbolsInput,
     batchInterval,
     batchRange,

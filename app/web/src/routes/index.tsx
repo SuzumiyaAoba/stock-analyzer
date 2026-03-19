@@ -19,7 +19,7 @@ function HomePage() {
   const searchBuilder = useDashboardSearch(search, data.selectedSymbol);
 
   return (
-    <main className="app-shell">
+    <main className="mx-auto max-w-[1440px] px-6 py-6 max-sm:px-4 max-sm:py-4">
       <OperationsPanel
         data={data}
         syncSymbolInput={actions.syncSymbolInput}
@@ -45,16 +45,21 @@ function HomePage() {
         onRunSyncJob={actions.handleRunSyncJob}
       />
 
-      <section className="dashboard-grid">
+      <section className="grid items-start gap-5 xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
         <InstrumentsPanel
           search={search}
           instruments={data.instruments}
+          japanMarketInstruments={data.japanMarketInstruments}
+          japanMarketErrorMessage={data.japanMarketErrorMessage}
           hasPreviousPage={data.hasPreviousPage}
           hasNextPage={data.hasNextPage}
           selectedSymbol={data.selectedSymbol}
           errorMessage={data.errorMessage}
           instrumentSearchFor={searchBuilder.instrumentSearchFor}
           pageSearchFor={searchBuilder.pageSearchFor}
+          isSyncPending={actions.isSyncPending}
+          syncingSymbol={actions.syncingSymbol}
+          onSyncSymbol={actions.handleSyncSymbol}
         />
         <InstrumentDetailPanel
           data={data}

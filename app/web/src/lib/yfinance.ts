@@ -159,6 +159,24 @@ const syncRunsResponseSchema = z.object({
   runs: z.array(syncJobRunSchema),
 });
 
+const screenerInstrumentSchema = z.object({
+  symbol: z.string(),
+  quoteType: nullableStringSchema,
+  exchange: nullableStringSchema,
+  currency: nullableStringSchema,
+  shortName: nullableStringSchema,
+  longName: nullableStringSchema,
+  regularMarketPrice: nullableNumberSchema,
+  regularMarketChangePercent: nullableNumberSchema,
+  marketCap: nullableNumberSchema,
+  rawJson: z.string(),
+});
+
+const screenerResponseSchema = z.object({
+  count: z.number().int().nonnegative(),
+  items: z.array(screenerInstrumentSchema),
+});
+
 export type InstrumentListItem = z.infer<typeof instrumentSchema>;
 export type InstrumentDetail = InstrumentListItem;
 export type PriceBar = z.infer<typeof priceBarSchema>;
@@ -167,6 +185,7 @@ export type SymbolSyncResult = z.infer<typeof symbolSyncResultSchema>;
 export type BatchSyncResult = z.infer<typeof batchSyncResultSchema>;
 export type SyncJobState = z.infer<typeof syncJobStateSchema>;
 export type SyncJobRun = z.infer<typeof syncJobRunSchema>;
+export type ScreenerInstrument = z.infer<typeof screenerInstrumentSchema>;
 
 export type ApiHealth = {
   ok: boolean;
@@ -176,6 +195,8 @@ export type ApiHealth = {
 export type DashboardData = {
   search: DashboardSearch;
   instruments: InstrumentListItem[];
+  japanMarketInstruments: ScreenerInstrument[];
+  japanMarketErrorMessage: string | null;
   hasPreviousPage: boolean;
   hasNextPage: boolean;
   selectedSymbol: string | null;
@@ -342,10 +363,14 @@ export const getDashboardData = createServerFn({
       instrumentsQuery.set("q", search.q);
     }
 
-    const [healthResult, instrumentsResult, syncJobResult, syncRunsResult] =
+    const [healthResult, instrumentsResult, japanMarketResult, syncJobResult, syncRunsResult] =
       await Promise.allSettled([
         fetchJson("/healthz", healthResponseSchema),
         fetchJson(`/api/v1/instruments?${instrumentsQuery.toString()}`, instrumentsResponseSchema),
+        fetchJson(
+          "/api/v1/yahoo/screener?exchange=TSE&region=jp&quoteType=EQUITY&count=12&offset=0",
+          screenerResponseSchema,
+        ),
         fetchJson("/api/v1/jobs/sync", syncJobStateSchema),
         fetchJson(`/api/v1/jobs/sync/runs?limit=${search.runsLimit}`, syncRunsResponseSchema),
       ]);
@@ -357,11 +382,17 @@ export const getDashboardData = createServerFn({
 
     const syncJob = syncJobResult.status === "fulfilled" ? syncJobResult.value : null;
     const syncRuns = syncRunsResult.status === "fulfilled" ? syncRunsResult.value.runs : [];
+    const japanMarketInstruments =
+      japanMarketResult.status === "fulfilled" ? japanMarketResult.value.items : [];
+    const japanMarketErrorMessage =
+      japanMarketResult.status === "rejected" ? toApiErrorMessage(japanMarketResult.reason) : null;
 
     if (instrumentsResult.status === "rejected") {
       return {
         search,
         instruments: [],
+        japanMarketInstruments,
+        japanMarketErrorMessage,
         hasPreviousPage: search.offset > 0,
         hasNextPage: false,
         selectedSymbol: null,
@@ -390,6 +421,8 @@ export const getDashboardData = createServerFn({
       return {
         search,
         instruments: instrumentsResponse.items,
+        japanMarketInstruments,
+        japanMarketErrorMessage,
         hasPreviousPage: search.offset > 0,
         hasNextPage: instrumentsResponse.items.length >= search.listLimit,
         selectedSymbol: null,
@@ -444,6 +477,8 @@ export const getDashboardData = createServerFn({
     return {
       search,
       instruments: instrumentsResponse.items,
+      japanMarketInstruments,
+      japanMarketErrorMessage,
       hasPreviousPage: search.offset > 0,
       hasNextPage: instrumentsResponse.items.length >= search.listLimit,
       selectedSymbol,

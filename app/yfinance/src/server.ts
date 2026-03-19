@@ -10,6 +10,7 @@ import {
   instrumentsQuerySchema,
   pricesQuerySchema,
   quoteSyncRequestSchema,
+  screenerQuerySchema,
   serverConfigSchema,
   syncRunsQuerySchema,
 } from "./schemas";
@@ -130,6 +131,20 @@ export function createApp({ db, yahoo, syncJob, logger = console }: AppDependenc
   app.get("/api/v1/jobs/sync", (c) => {
     return c.json(syncJob.snapshot());
   });
+
+  app.get(
+    "/api/v1/yahoo/screener",
+    zValidator("query", screenerQuerySchema, validationHook),
+    async (c) => {
+      const query = c.req.valid("query");
+      const items = await yahoo.screenByExchange(query);
+
+      return c.json({
+        count: items.length,
+        items,
+      });
+    },
+  );
 
   app.get(
     "/api/v1/jobs/sync/runs",
