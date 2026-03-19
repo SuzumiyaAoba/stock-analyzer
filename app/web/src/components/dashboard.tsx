@@ -1,15 +1,9 @@
 import * as React from "react";
 import type { FormEvent } from "react";
-import {
-  BarChart3,
-  ListFilter,
-  Play,
-  RefreshCcw,
-  Search,
-  Waypoints,
-} from "lucide-react";
+import { BarChart3, ListFilter, Play, RefreshCcw, Search, Waypoints } from "lucide-react";
 import { Link, useRouter } from "@tanstack/react-router";
 import { CandlestickChart } from "~/components/candlestick-chart";
+import { InstrumentTable, JapanMarketTable } from "~/components/dashboard-tables";
 import { Alert, AlertDescription } from "~/components/ui/alert";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -25,14 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "~/components/ui/table";
+import { Table, TableBody, TableCell, TableRow } from "~/components/ui/table";
 import { Textarea } from "~/components/ui/textarea";
 import {
   actionLimitOptions,
@@ -57,7 +44,6 @@ import {
   formatDate,
   formatDateTime,
   formatDiff,
-  formatPercentChange,
   formatPrice,
 } from "~/lib/dashboard-formatters";
 import type {
@@ -304,7 +290,9 @@ export function OperationsPanel({
               />
             </div>
 
-            {data.apiHealth.errorMessage ? <InlineAlert message={data.apiHealth.errorMessage} /> : null}
+            {data.apiHealth.errorMessage ? (
+              <InlineAlert message={data.apiHealth.errorMessage} />
+            ) : null}
             {syncJob?.lastRunError ? <InlineAlert message={syncJob.lastRunError} /> : null}
 
             <Button
@@ -380,7 +368,10 @@ export function AnalysisSidebarPanel({
   }
 
   return (
-    <Card className="dashboard-enter sticky top-4 overflow-hidden max-[1100px]:static" data-delay="2">
+    <Card
+      className="dashboard-enter sticky top-4 overflow-hidden max-[1100px]:static"
+      data-delay="2"
+    >
       <CardHeader className="gap-3 pb-3">
         <div>
           <p className="section-kicker">Symbol Navigator</p>
@@ -390,10 +381,7 @@ export function AnalysisSidebarPanel({
           </CardDescription>
         </div>
 
-        <form
-          className="grid gap-2 p-0"
-          onSubmit={handleSearchSubmit}
-        >
+        <form className="grid gap-2 p-0" onSubmit={handleSearchSubmit}>
           <Label htmlFor={queryInputId}>検索</Label>
           <div className="flex gap-2">
             <Input
@@ -433,41 +421,13 @@ export function AnalysisSidebarPanel({
           {instruments.length > 0 ? (
             <Card className="overflow-hidden">
               <CardContent className="max-h-[62vh] overflow-auto p-0">
-                <Table className="min-w-full">
-                  <TableBody>
-                    {instruments.map((item) => {
-                      const isActive = item.symbol === selectedSymbol;
-                      return (
-                        <TableRow key={item.symbol} data-state={isActive ? "selected" : undefined}>
-                          <TableCell>
-                            <div className="grid gap-0.5">
-                              <Link
-                                to={detailTo}
-                                search={instrumentSearchFor(item.symbol)}
-                                resetScroll={false}
-                                className="app-display text-base font-semibold"
-                                aria-current={isActive ? "page" : undefined}
-                              >
-                                {item.symbol}
-                              </Link>
-                              <span className="truncate text-xs text-[color:var(--muted-foreground)]">
-                                {item.shortName || item.longName || "-"}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap text-right font-semibold">
-                            {formatPrice(item.latestQuote?.regularMarketPrice, item.currency)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <PercentBadge value={quoteDiffRatio(item.latestQuote)}>
-                              {formatPercentChange(item.latestQuote)}
-                            </PercentBadge>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                <InstrumentTable
+                  variant="compact"
+                  instruments={instruments}
+                  selectedSymbol={selectedSymbol}
+                  detailTo={detailTo}
+                  instrumentSearchFor={instrumentSearchFor}
+                />
               </CardContent>
             </Card>
           ) : (
@@ -598,10 +558,7 @@ export function InstrumentsPanel({
           <Badge variant="outline">{instruments.length} symbols</Badge>
         </div>
 
-        <form
-          className="grid gap-3 p-0"
-          onSubmit={handleSearchSubmit}
-        >
+        <form className="grid gap-3 p-0" onSubmit={handleSearchSubmit}>
           <div className="flex items-center gap-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
             <Search className="size-4" />
             Search
@@ -619,10 +576,7 @@ export function InstrumentsPanel({
           </div>
         </form>
 
-        <form
-          className="grid gap-3 p-0"
-          onSubmit={handleListControlsSubmit}
-        >
+        <form className="grid gap-3 p-0" onSubmit={handleListControlsSubmit}>
           <div className="flex items-center gap-2 text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
             <ListFilter className="size-4" />
             Controls
@@ -707,45 +661,17 @@ export function InstrumentsPanel({
               </div>
               <Badge variant="outline">{japanMarketInstruments.length} symbols</Badge>
             </div>
-            <CardDescription>
-              上位候補だけを短く確認して同期できます。
-            </CardDescription>
+            <CardDescription>上位候補だけを短く確認して同期できます。</CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
             {japanMarketErrorMessage ? <InlineAlert message={japanMarketErrorMessage} /> : null}
             {japanMarketInstruments.length > 0 ? (
-              <Table className="min-w-full">
-                <TableBody>
-                  {japanMarketInstruments.slice(0, 5).map((item) => (
-                    <TableRow key={item.symbol}>
-                      <TableCell className="font-medium">
-                        <div className="grid gap-0.5">
-                          <span className="app-display text-sm font-semibold">{item.symbol}</span>
-                          <span className="truncate text-xs text-[color:var(--muted-foreground)]">
-                            {item.shortName || item.longName || "-"}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <PercentBadge value={item.regularMarketChangePercent}>
-                          {formatSignedPercent(item.regularMarketChangePercent)}
-                        </PercentBadge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          type="button"
-                          onClick={() => onSyncSymbol(item.symbol)}
-                          disabled={isSyncPending}
-                        >
-                          {syncingSymbol === item.symbol ? "同期中" : "同期"}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <JapanMarketTable
+                items={japanMarketInstruments}
+                isSyncPending={isSyncPending}
+                syncingSymbol={syncingSymbol}
+                onSyncSymbol={onSyncSymbol}
+              />
             ) : (
               <EmptyInlineMessage>日本市場の銘柄一覧を取得できませんでした。</EmptyInlineMessage>
             )}
@@ -777,60 +703,13 @@ export function InstrumentsPanel({
           {instruments.length > 0 ? (
             <Card className="overflow-hidden">
               <CardContent className="max-h-[56vh] overflow-auto p-0">
-                <Table className="min-w-full">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>銘柄</TableHead>
-                      <TableHead>価格</TableHead>
-                      <TableHead className="text-right">騰落</TableHead>
-                      <TableHead className="text-right">詳細</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {instruments.map((item) => {
-                      const isActive = item.symbol === selectedSymbol;
-                      return (
-                        <TableRow key={item.symbol} data-state={isActive ? "selected" : undefined}>
-                          <TableCell className="min-w-0">
-                            <div className="grid gap-0.5">
-                              <Link
-                                to={detailTo}
-                                search={instrumentSearchFor(item.symbol)}
-                                resetScroll={false}
-                                className="app-display text-base font-semibold"
-                                aria-current={isActive ? "page" : undefined}
-                              >
-                                {item.symbol}
-                              </Link>
-                              <span className="truncate text-xs text-[color:var(--muted-foreground)]">
-                                {item.shortName || item.longName || "-"}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap font-semibold">
-                            {formatPrice(item.latestQuote?.regularMarketPrice, item.currency)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <PercentBadge value={quoteDiffRatio(item.latestQuote)}>
-                              {formatPercentChange(item.latestQuote)}
-                            </PercentBadge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button asChild size="sm" variant={isActive ? "secondary" : "ghost"}>
-                              <Link
-                                to={detailTo}
-                                search={instrumentSearchFor(item.symbol)}
-                                resetScroll={false}
-                              >
-                                {isActive ? "表示中" : "開く"}
-                              </Link>
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                <InstrumentTable
+                  variant="full"
+                  instruments={instruments}
+                  selectedSymbol={selectedSymbol}
+                  detailTo={detailTo}
+                  instrumentSearchFor={instrumentSearchFor}
+                />
               </CardContent>
             </Card>
           ) : (
@@ -1264,16 +1143,6 @@ function CompactMetric({
   );
 }
 
-function PercentBadge({
-  value,
-  children,
-}: Readonly<{
-  value: number | null;
-  children: React.ReactNode;
-}>) {
-  return <Badge variant={changeBadgeVariant(value)}>{children}</Badge>;
-}
-
 function PagerLink({
   to,
   enabled,
@@ -1338,10 +1207,7 @@ function Stat({ label, value }: Readonly<{ label: string; value: string }>) {
   );
 }
 
-function InfoRow({
-  label,
-  value,
-}: Readonly<{ label: string; value: string }>) {
+function InfoRow({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div className="grid gap-1 px-3 py-2">
       <dt className="text-xs uppercase tracking-[0.12em] text-[color:var(--muted-foreground)]">
@@ -1374,9 +1240,7 @@ function EmptyState({
 }>) {
   return (
     <div className="grid gap-3 text-[color:var(--muted-foreground)]">
-      {kicker ? (
-        <p className="section-kicker">{kicker}</p>
-      ) : null}
+      {kicker ? <p className="section-kicker">{kicker}</p> : null}
       <h2 className="app-display text-2xl font-semibold leading-tight text-[color:var(--page-foreground)]">
         {title}
       </h2>
@@ -1407,34 +1271,6 @@ function trendTextClass(value: number | null) {
   }
 
   return "text-[color:var(--success)]";
-}
-
-function changeBadgeVariant(value: number | null): "success" | "destructive" | "outline" {
-  if (value === null) {
-    return "outline";
-  }
-
-  if (value < 0) {
-    return "destructive";
-  }
-
-  return "success";
-}
-
-function quoteDiffRatio(
-  quote:
-    | {
-        regularMarketPrice: number | null;
-        previousClose: number | null;
-      }
-    | null
-    | undefined,
-) {
-  return derivePriceChange(quote).diffRatio;
-}
-
-function formatBoolean(value: boolean) {
-  return value ? "はい" : "いいえ";
 }
 
 function formatIntervalMs(value: number) {
@@ -1494,13 +1330,4 @@ function statusBadgeVariant(status: string): "success" | "destructive" | "outlin
   }
 
   return "outline";
-}
-
-function formatSignedPercent(value: number | null) {
-  if (value === null) {
-    return "-";
-  }
-
-  const sign = value > 0 ? "+" : "";
-  return `${sign}${value.toFixed(2)}%`;
 }

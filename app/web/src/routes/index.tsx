@@ -15,21 +15,7 @@ import { getDashboardData } from "~/lib/yfinance";
 
 export const Route = createFileRoute("/")({
   validateSearch: (search) => dashboardSearchSchema.parse(search),
-  loaderDeps: ({ search }) => ({
-    q: search.q,
-    symbol: search.symbol,
-    interval: search.interval,
-    sortBy: search.sortBy,
-    order: search.order,
-    listLimit: search.listLimit,
-    offset: search.offset,
-    priceLimit: search.priceLimit,
-    actionType: search.actionType,
-    actionLimit: search.actionLimit,
-    runsLimit: search.runsLimit,
-    from: search.from,
-    to: search.to,
-  }),
+  loaderDeps: ({ search }) => search,
   loader: ({ deps }) => getDashboardData({ data: deps }),
   component: HomePage,
 });
