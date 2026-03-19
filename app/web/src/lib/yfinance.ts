@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { formatHttpErrorMessage } from "./api-error";
 import { dashboardSearchSchema, type DashboardSearch } from "./dashboard-config";
 
 const API_TIMEOUT_MS = 10_000;
@@ -243,7 +244,14 @@ async function requestJson<T>(path: string, schema: z.ZodType<T>, init?: Request
 
     if (!response.ok) {
       const message = await response.text();
-      throw new Error(`yfinance request failed: ${response.status} ${message.slice(0, 200)}`);
+      throw new Error(
+        formatHttpErrorMessage(
+          response.status,
+          response.statusText,
+          message,
+          response.headers.get("content-type"),
+        ),
+      );
     }
 
     const payload = (await response.json()) as unknown;
