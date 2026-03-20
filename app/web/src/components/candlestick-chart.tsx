@@ -11,6 +11,39 @@ import type { PriceBar } from "~/lib/yfinance";
 
 const useChartEffect = typeof window === "undefined" ? React.useEffect : React.useLayoutEffect;
 
+type ChartTheme = {
+  background: string;
+  text: string;
+  grid: string;
+  crosshair: string;
+  crosshairBackground: string;
+  up: string;
+  down: string;
+  fontFamily: string;
+};
+
+function readThemeValue(name: string, fallback: string) {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  const value = window.getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
+function getChartTheme(): ChartTheme {
+  return {
+    background: readThemeValue("--page-background", "#f7f1e6"),
+    text: readThemeValue("--muted-foreground", "#5f6a77"),
+    grid: "rgba(0, 0, 0, 0)",
+    crosshair: readThemeValue("--accent", "#1f6c73"),
+    crosshairBackground: readThemeValue("--page-background", "#f7f1e6"),
+    up: readThemeValue("--success", "#13795b"),
+    down: readThemeValue("--danger", "#b45144"),
+    fontFamily: readThemeValue("--font-body", '"IBM Plex Sans JP", sans-serif'),
+  };
+}
+
 function toCandlestickData(prices: PriceBar[]): CandlestickData<Time>[] {
   return prices.flatMap((price) => {
     const { open, high, low, close } = price;
@@ -56,6 +89,7 @@ export function CandlestickChart({
   const seriesRef = React.useRef<ISeriesApi<"Candlestick", Time> | null>(null);
   const deferredPrices = React.useDeferredValue(prices);
   const seriesData = React.useMemo(() => toCandlestickData(deferredPrices), [deferredPrices]);
+  const chartTheme = React.useMemo(() => getChartTheme(), []);
   const priceFormatter = React.useMemo(
     () => (value: number) => formatPrice(value, currency),
     [currency],
@@ -82,34 +116,34 @@ export function CandlestickChart({
         layout: {
           background: {
             type: ColorType.Solid,
-            color: "#ffffff",
+            color: chartTheme.background,
           },
-          textColor: "#5b6777",
-          fontFamily: '"Segoe UI", "Noto Sans JP", sans-serif',
+          textColor: chartTheme.text,
+          fontFamily: chartTheme.fontFamily,
         },
         grid: {
           vertLines: {
-            color: "#eef2f7",
+            color: chartTheme.grid,
           },
           horzLines: {
-            color: "#eef2f7",
+            color: chartTheme.grid,
           },
         },
         rightPriceScale: {
-          borderColor: "#d7dee8",
+          borderVisible: false,
         },
         timeScale: {
-          borderColor: "#d7dee8",
+          borderVisible: false,
           timeVisible: true,
         },
         crosshair: {
           vertLine: {
-            color: "#94a3b8",
-            labelBackgroundColor: "#475569",
+            color: chartTheme.crosshair,
+            labelBackgroundColor: chartTheme.crosshairBackground,
           },
           horzLine: {
-            color: "#94a3b8",
-            labelBackgroundColor: "#475569",
+            color: chartTheme.crosshair,
+            labelBackgroundColor: chartTheme.crosshairBackground,
           },
         },
         localization: {
@@ -120,10 +154,10 @@ export function CandlestickChart({
       chartRef.current = createdChart;
 
       const candlestickSeries = createdChart.addSeries(CandlestickSeries, {
-        upColor: "#15803d",
-        downColor: "#dc2626",
-        wickUpColor: "#15803d",
-        wickDownColor: "#dc2626",
+        upColor: chartTheme.up,
+        downColor: chartTheme.down,
+        wickUpColor: chartTheme.up,
+        wickDownColor: chartTheme.down,
         borderVisible: false,
         priceFormat: {
           type: "custom",
@@ -155,7 +189,7 @@ export function CandlestickChart({
       chartRef.current?.remove();
       chartRef.current = null;
     };
-  }, [canRenderChart]);
+  }, [canRenderChart, chartTheme]);
 
   useChartEffect(() => {
     if (!canRenderChart || !chartRef.current || !seriesRef.current) {
@@ -180,7 +214,9 @@ export function CandlestickChart({
 
   if (!canRenderChart) {
     return (
-      <div className="text-sm text-slate-600">ローソク足を表示する価格データが不足しています。</div>
+      <div className="text-sm text-[color:var(--muted-foreground)]">
+        ローソク足を表示する価格データが不足しています。
+      </div>
     );
   }
 
@@ -188,14 +224,14 @@ export function CandlestickChart({
     <div className="mt-4">
       <div
         ref={chartContainerRef}
-        className="h-[320px] w-full overflow-hidden rounded-xl border border-slate-200 bg-white max-sm:h-[260px]"
+        className="h-[320px] w-full overflow-hidden max-sm:h-[260px]"
         role="img"
         aria-label="株価のローソク足チャート"
       />
-      <p className="mt-2 text-xs text-slate-600">
+      <p className="mt-3 text-xs text-[color:var(--muted-foreground)]">
         TradingView Lightweight Charts™ Copyright (c) 2025 TradingView, Inc.
         <a
-          className="ml-1 text-blue-600 hover:underline"
+          className="ml-1 text-[color:var(--accent)] hover:underline"
           href="https://www.tradingview.com/"
           target="_blank"
           rel="noreferrer"

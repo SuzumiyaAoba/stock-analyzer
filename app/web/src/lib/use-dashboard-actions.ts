@@ -2,12 +2,47 @@ import * as React from "react";
 import { useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import type { DashboardSearch, SyncHistoryInterval, SyncHistoryRange } from "./dashboard-config";
-import { runSyncJobNow, syncBatchInstruments, syncInstrument } from "./yfinance";
+import {
+  runSyncJobNow,
+  syncBatchInstruments,
+  syncInstrument,
+  type BatchSyncResult,
+  type SyncJobState,
+} from "./yfinance";
 
 type ActionFeedback = {
   type: "success" | "error";
   message: string;
 } | null;
+
+function normalizeSymbolInput(value: string) {
+  return value.trim().toUpperCase();
+}
+
+function toActionError(error: unknown, fallbackMessage: string): ActionFeedback {
+  return {
+    type: "error",
+    message: error instanceof Error ? error.message : fallbackMessage,
+  };
+}
+
+function buildBatchSuccessMessage(result: BatchSyncResult) {
+  const firstSymbol = result.results[0]?.symbol;
+
+  if (result.count === 1) {
+    return `${firstSymbol ?? "対象銘柄"} を一括同期しました。`;
+  }
+
+  return `${result.count}件の銘柄を一括同期しました。`;
+}
+
+function buildSyncJobSuccessMessage(result: Pick<SyncJobState, "lastRunError">) {
+  if (result.lastRunError === null) {
+    return "定期同期ジョブを実行しました。";
+  }
+
+  return `ジョブ実行は完了しましたが、エラーが発生しました: ${result.lastRunError}`;
+}
 
 export function useDashboardActions(search: DashboardSearch) {
   const router = useRouter();
@@ -15,12 +50,16 @@ export function useDashboardActions(search: DashboardSearch) {
   const runBatchSync = useServerFn(syncBatchInstruments);
   const runSyncJob = useServerFn(runSyncJobNow);
 
-  const [syncSymbolInput, setSyncSymbolInput] = React.useState(search.symbol ?? search.q ?? "");
+  const [syncSymbolInput, setSyncSymbolInput] = React.useState(
+    normalizeSymbolInput(search.symbol ?? search.q ?? ""),
+  );
   const [syncFeedback, setSyncFeedback] = React.useState<ActionFeedback>(null);
   const [syncingSymbol, setSyncingSymbol] = React.useState<string | null>(null);
   const [isSyncPending, startSyncTransition] = React.useTransition();
 
-  const [batchSymbolsInput, setBatchSymbolsInput] = React.useState(search.symbol ?? "");
+  const [batchSymbolsInput, setBatchSymbolsInput] = React.useState(
+    normalizeSymbolInput(search.symbol ?? ""),
+  );
   const [batchInterval, setBatchInterval] = React.useState<SyncHistoryInterval>("1d");
   const [batchRange, setBatchRange] = React.useState<SyncHistoryRange>("1mo");
   const [batchIncludePrePost, setBatchIncludePrePost] = React.useState(false);
@@ -45,11 +84,12 @@ export function useDashboardActions(search: DashboardSearch) {
         offset: 0,
       },
       replace: true,
+      resetScroll: false,
     });
   });
 
   React.useEffect(() => {
-    setSyncSymbolInput(search.symbol ?? search.q ?? "");
+    setSyncSymbolInput(normalizeSymbolInput(search.symbol ?? search.q ?? ""));
   }, [search.q, search.symbol]);
 
   React.useEffect(() => {
@@ -57,12 +97,14 @@ export function useDashboardActions(search: DashboardSearch) {
       return;
     }
 
-    setBatchSymbolsInput((current) => (current.trim() ? current : (search.symbol ?? "")));
+    setBatchSymbolsInput((current) =>
+      current.trim() ? current : normalizeSymbolInput(search.symbol ?? ""),
+    );
   }, [search.symbol]);
 
   function updateSyncSymbolInput(value: string) {
     setSyncFeedback(null);
-    setSyncSymbolInput(value.toUpperCase());
+    setSyncSymbolInput(normalizeSymbolInput(value));
   }
 
   function updateBatchSymbolsInput(value: string) {
@@ -102,10 +144,7 @@ export function useDashboardActions(search: DashboardSearch) {
           message: `${result.symbol} の価格・配当・スナップショットを同期しました。`,
         });
       } catch (error) {
-        setSyncFeedback({
-          type: "error",
-          message: error instanceof Error ? error.message : "同期に失敗しました。",
-        });
+        setSyncFeedback(toActionError(error, "同期に失敗しました。"));
       } finally {
         setSyncingSymbol(null);
       }
@@ -114,11 +153,11 @@ export function useDashboardActions(search: DashboardSearch) {
 
   function handleSyncSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    submitSync(syncSymbolInput.trim().toUpperCase());
+    submitSync(normalizeSymbolInput(syncSymbolInput));
   }
 
   function handleSyncSymbol(symbol: string) {
-    submitSync(symbol.trim().toUpperCase());
+    submitSync(normalizeSymbolInput(symbol));
   }
 
   function handleBatchSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -157,16 +196,10 @@ export function useDashboardActions(search: DashboardSearch) {
 
         setBatchFeedback({
           type: "success",
-          message:
-            result.count === 1
-              ? `${firstSymbol ?? "対象銘柄"} を一括同期しました。`
-              : `${result.count}件の銘柄を一括同期しました。`,
+          message: buildBatchSuccessMessage(result),
         });
       } catch (error) {
-        setBatchFeedback({
-          type: "error",
-          message: error instanceof Error ? error.message : "一括同期に失敗しました。",
-        });
+        setBatchFeedback(toActionError(error, "一括同期に失敗しました。"));
       }
     });
   }
@@ -185,16 +218,10 @@ export function useDashboardActions(search: DashboardSearch) {
 
         setJobFeedback({
           type: "success",
-          message:
-            result.lastRunError === null
-              ? "定期同期ジョブを実行しました。"
-              : `ジョブ実行は完了しましたが、エラーが発生しました: ${result.lastRunError}`,
+          message: buildSyncJobSuccessMessage(result),
         });
       } catch (error) {
-        setJobFeedback({
-          type: "error",
-          message: error instanceof Error ? error.message : "ジョブ実行に失敗しました。",
-        });
+        setJobFeedback(toActionError(error, "ジョブ実行に失敗しました。"));
       }
     });
   }

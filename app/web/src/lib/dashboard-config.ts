@@ -43,6 +43,12 @@ export const actionTypeOptions = [
   { value: "capitalGain", label: "キャピタルゲイン" },
 ] as const;
 
+export const dashboardViewOptions = [
+  { value: "analysis", label: "分析" },
+  { value: "universe", label: "監視" },
+  { value: "operations", label: "運用" },
+] as const;
+
 export const syncHistoryIntervalOptions = [
   { value: "1d", label: "1日足" },
   { value: "5d", label: "5日足" },
@@ -66,6 +72,7 @@ export type DashboardInterval = (typeof intervalOptions)[number]["value"];
 export type DashboardSortBy = (typeof instrumentSortOptions)[number]["value"];
 export type DashboardOrder = (typeof orderOptions)[number]["value"];
 export type DashboardActionType = (typeof actionTypeOptions)[number]["value"];
+export type DashboardView = (typeof dashboardViewOptions)[number]["value"];
 export type SyncHistoryInterval = (typeof syncHistoryIntervalOptions)[number]["value"];
 export type SyncHistoryRange = (typeof syncHistoryRangeOptions)[number]["value"];
 
@@ -123,6 +130,7 @@ function dateSearchSchema(fieldName: string) {
 export const dashboardSearchSchema = z
   .object({
     q: optionalTrimmedStringSchema(),
+    view: z.enum(["analysis", "universe", "operations"]).optional().default("analysis"),
     symbol: optionalTrimmedStringSchema().transform((value) => value?.toUpperCase()),
     interval: z.enum(["1d", "1wk", "1mo"]).optional().default("1d"),
     sortBy: z

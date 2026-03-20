@@ -2,8 +2,15 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { formatHttpErrorMessage } from "./api-error";
 import { dashboardSearchSchema, type DashboardSearch } from "./dashboard-config";
+import { createRequestSignal, normalizeSymbolsText, resolveSelectedSymbol } from "./yfinance-utils";
 
 const API_TIMEOUT_MS = 10_000;
+const DEFAULT_API_BASE_URL = "http://127.0.0.1:3000";
+const SYNC_INSTRUMENT_HISTORY_REQUESTS = [
+  { interval: "1d", range: "6mo" },
+  { interval: "1wk", range: "2y" },
+  { interval: "1mo", range: "5y" },
+] as const;
 
 const syncSymbolSchema = z.object({
   symbol: z
@@ -22,14 +29,7 @@ const batchSyncInputSchema = z
     skipQuote: z.boolean().optional().default(false),
   })
   .transform((input, ctx) => {
-    const symbols = [
-      ...new Set(
-        input.symbolsText
-          .split(/[\s,]+/)
-          .map((value) => value.trim().toUpperCase())
-          .filter(Boolean),
-      ),
-    ];
+    const symbols = normalizeSymbolsText(input.symbolsText);
     if (symbols.length === 0) {
       ctx.addIssue({
         code: "custom",
@@ -211,7 +211,7 @@ export type DashboardData = {
 };
 
 function getApiBaseUrl() {
-  return process.env.YFINANCE_API_BASE_URL || "http://127.0.0.1:3000";
+  return process.env.YFINANCE_API_BASE_URL || DEFAULT_API_BASE_URL;
 }
 
 function formatZodError(error: z.ZodError) {
@@ -240,18 +240,8 @@ function buildDateRangeQuery(search: DashboardSearch, query: URLSearchParams) {
   }
 }
 
-function createTimeoutSignal() {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
-
-  return {
-    signal: controller.signal,
-    clear: () => clearTimeout(timeoutId),
-  };
-}
-
 async function requestJson<T>(path: string, schema: z.ZodType<T>, init?: RequestInit): Promise<T> {
-  const timeout = createTimeoutSignal();
+  const requestSignal = createRequestSignal(API_TIMEOUT_MS, init?.signal);
   const headers = new Headers(init?.headers);
   headers.set("Accept", "application/json");
 
@@ -260,7 +250,7 @@ async function requestJson<T>(path: string, schema: z.ZodType<T>, init?: Request
       ...init,
       headers,
       cache: "no-store",
-      signal: timeout.signal,
+      signal: requestSignal.signal,
     });
 
     if (!response.ok) {
@@ -278,7 +268,7 @@ async function requestJson<T>(path: string, schema: z.ZodType<T>, init?: Request
     const payload = (await response.json()) as unknown;
     return schema.parse(payload);
   } finally {
-    timeout.clear();
+    requestSignal.clear();
   }
 }
 
@@ -304,21 +294,13 @@ export const syncInstrument = createServerFn({
     const input = syncSymbolSchema.parse(data);
 
     await Promise.all([
-      postJson("/api/v1/sync/history", z.unknown(), {
-        symbol: input.symbol,
-        interval: "1d",
-        range: "6mo",
-      }),
-      postJson("/api/v1/sync/history", z.unknown(), {
-        symbol: input.symbol,
-        interval: "1wk",
-        range: "2y",
-      }),
-      postJson("/api/v1/sync/history", z.unknown(), {
-        symbol: input.symbol,
-        interval: "1mo",
-        range: "5y",
-      }),
+      ...SYNC_INSTRUMENT_HISTORY_REQUESTS.map(({ interval, range }) =>
+        postJson("/api/v1/sync/history", z.unknown(), {
+          symbol: input.symbol,
+          interval,
+          range,
+        }),
+      ),
       postJson("/api/v1/sync/quote", z.unknown(), {
         symbol: input.symbol,
       }),
@@ -408,14 +390,7 @@ export const getDashboardData = createServerFn({
     }
 
     const instrumentsResponse = instrumentsResult.value;
-    const normalizedQuery = search.q?.toUpperCase();
-    const selectedSymbol =
-      search.symbol ||
-      instrumentsResponse.items.find((item) =>
-        normalizedQuery ? item.symbol.includes(normalizedQuery) : false,
-      )?.symbol ||
-      instrumentsResponse.items[0]?.symbol ||
-      null;
+    const selectedSymbol = resolveSelectedSymbol(search, instrumentsResponse.items);
 
     if (!selectedSymbol) {
       return {
